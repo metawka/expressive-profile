@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import core from "../render/core-icons.json";
+import { analyzeAuthoredStats } from "../analytics";
 import { readme, render, streakOf, type Config, type Data, type Day, type Icons, type Repo } from "../render";
 
 const NOISE = new Set(["Inno Setup", "Batchfile", "PowerShell", "VBScript", "Shell", "Makefile", "Dockerfile"]);
@@ -122,6 +123,12 @@ async function main() {
   const cacheFile = ".profile/data.json";
   const cached = existsSync(cacheFile) ? JSON.parse(readFileSync(cacheFile, "utf8")) : null;
   const data = await fetchData(config.login);
+  try {
+    data.authored = await analyzeAuthoredStats({ login: config.login, token: token || undefined });
+  } catch (error) {
+    if (token && error instanceof Error && error.message === "mismatch") data.authored = await analyzeAuthoredStats({ login: config.login });
+    else throw error;
+  }
   const ava = await avatar(config.login);
   const { days, ...rest } = data;
   const day = new Date().toISOString().slice(0, 10);

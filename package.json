@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "assets": "node scripts/assets.mjs",
+    "linguist": "node scripts/linguist.mjs",
     "renderer": "node scripts/renderer.mjs",
     "dev": "npm run assets && vite",
     "build": "npm run assets && npm run renderer && tsc && vite build"
@@ -25,6 +26,7 @@
     "esbuild": "^0.28.2",
     "simple-icons": "^16.35.0",
     "typescript": "^7.0.2",
-    "vite": "^8.3.4"
+    "vite": "^8.3.4",
+    "yaml": "^2.9.1"
   }
 }

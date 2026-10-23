@@ -1,6 +1,7 @@
 import { zipSync, strToU8 } from "fflate";
+import { analyzeAuthoredStats, type AnalysisProgress } from "../analytics";
 import core from "../render/core-icons.json";
-import { pickIcons, readme, render, streakOf, usedIcons, type Config, type Data, type Day, type Icons, type Repo } from "../render";
+import { pickIcons, readme, render, streakOf, usedIcons, type AuthoredStats, type Config, type Data, type Day, type Icons, type Repo } from "../render";
 
 // Icons
 export const store: Icons = structuredClone(core) as Icons;
@@ -129,6 +130,35 @@ function daysFromEvents(events: any[]) {
 type Loaded = { data: Data; avatar: string | null; stale?: boolean; exact?: boolean };
 const cache = new Map<string, Promise<Loaded>>();
 const FRESH = 30 * 60 * 1000;
+const AUTHORED_CACHE_VERSION = 1;
+const AUTHORED_FRESH = 7 * 24 * 60 * 60 * 1000;
+
+function authoredKey(login: string) {
+  return `ep:authored:${login.trim().toLowerCase()}`;
+}
+
+export function loadSavedAuthoredStats(login: string): AuthoredStats | null {
+  const key = authoredKey(login);
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as { version?: number; t?: number; value?: AuthoredStats };
+    if (saved.version !== AUTHORED_CACHE_VERSION || !saved.t || Date.now() - saved.t >= AUTHORED_FRESH || !saved.value) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return saved.value;
+  } catch {
+    localStorage.removeItem(key);
+    return null;
+  }
+}
+
+export function saveAuthoredStats(login: string, value: AuthoredStats) {
+  try {
+    localStorage.setItem(authoredKey(login), JSON.stringify({ version: AUTHORED_CACHE_VERSION, t: Date.now(), value }));
+  } catch {}
+}
 
 function saved(key: string): { t: number; v: Loaded } | null {
   try {
@@ -170,6 +200,10 @@ export function loadProfile(login: string, force = false): Promise<Loaded> {
   return cache.get(key)!;
 }
 
+export function loadAuthoredStats(login: string, token?: string, onProgress?: (progress: AnalysisProgress) => void) {
+  return analyzeAuthoredStats({ login, token, onProgress });
+}
+
 async function fetchProfile(login: string) {
   const user = await api(`users/${encodeURIComponent(login)}`);
   const [repos, events] = await Promise.all([
@@ -209,6 +243,7 @@ async function fetchProfile(login: string) {
     data.contributions = saved.contributions ?? data.contributions;
     data.stars = saved.stars ?? data.stars;
     data.streak = saved.streak ?? data.streak;
+    data.authored = saved.authored ?? data.authored;
   }
   return { data, avatar, name: user.name as string | null, exact: !!saved };
 }

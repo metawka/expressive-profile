@@ -7,7 +7,7 @@ branding:
 
 inputs:
   token:
-    description: Token for the GitHub API. A personal token also counts languages of private repositories
+    description: Token for the GitHub API. A fine-grained personal token also includes private authored-code statistics.
     default: ${{ github.token }}
   commit-message:
     description: Commit message for updates

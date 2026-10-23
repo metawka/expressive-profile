@@ -26,7 +26,7 @@ Generator of GitHub profile READMEs in the Material 3 Expressive style. The prof
 
 ## Features
 
-- Blocks: header, socials, about, tech stack, project cards, activity, streak, divider, link buttons.
+- Blocks: header, socials, about, tech stack, project cards, activity, authored-code statistics, streak, divider, link buttons.
 - Live preview with editing by click, drag to reorder, hiding blocks.
 - Material 3 color palette built from one color, a custom color or an image. Five palette styles, light and dark themes.
 - Eight Material 3 shapes for the avatar, project cards and social icons.
@@ -124,11 +124,17 @@ jobs:
 | `token` | `github.token` | Token for the GitHub API |
 | `commit-message` | `Updated profile` | Message of update commits |
 
-With the default token the language chart counts public repositories only. Private repositories are counted with a personal access token saved as the `PROFILE_TOKEN` secret.
+With the default token the language chart and authored-code statistics use public repositories only. To include private repositories, create a fine-grained personal access token restricted to the repositories you want to analyse, with **Metadata: read** and **Contents: read**, then save it as the `PROFILE_TOKEN` secret in the profile repository.
+
+The **Authored code** block counts additions and deletions in commits authored by the profile owner. It shows a donut chart for the most-used programming and markup languages and summary metrics for repositories, commits and changed lines. Language detection uses a generated mapping from [GitHub Linguist](https://github.com/github-linguist/linguist); data and prose formats such as JSON, YAML and Markdown, plus unknown files, do not distort the code percentages. A repository appears only when at least one matching author commit is found. Without a token the generator checks public repositories; with a PAT pasted into the editor it can preview private and organisation repositories accessible to that token.
+
+The editor keeps the completed authored-statistics result in this browser's local storage for seven days, keyed by GitHub login, so a reload does not repeat a long scan. That aggregate may include private repository names when a PAT was used. Clear the site's browser data to remove it. The PAT itself is never saved in configuration, share links, archives or browser storage. For scheduled private-aware updates, add the PAT yourself as `PROFILE_TOKEN`.
+
+GitHub API rate limits and very large histories can produce a partial result. The generated card labels partial data instead of presenting it as a complete history.
 
 ## Privacy
 
-The generator site counts visits with [GoatCounter](https://www.goatcounter.com/) on `metawka.github.io` only. No cookies are used and no personal data is stored.
+The generator site counts visits with [GoatCounter](https://www.goatcounter.com/) on `metawka.github.io` only. GoatCounter does not use cookies. The editor caches GitHub profile data and completed authored-statistics aggregates in local browser storage as described above; it never stores a PAT.
 
 ## Development
 

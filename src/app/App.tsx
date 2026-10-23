@@ -2,9 +2,10 @@ import { hexFromArgb, sourceColorFromImage } from "@material/material-color-util
 import { AnimatePresence, motion, Reorder, useDragControls } from "motion/react";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { projectList } from "../render/blocks";
+import { GitHubAnalysisError, type AnalysisProgress } from "../analytics";
 import { deflateSync, inflateSync, strFromU8, strToU8 } from "fflate";
-import { BLOCKS, defaults, palette, render, REPO_URL, slug, usedIcons, type BlockId, type Config, type Data, type Lang, type ShapeName } from "../render";
-import { buildZip, DEMO, hasIcon, LoadError, loadAllIcons, loadProfile, profileFiles, store } from "./data";
+import { BLOCKS, blockAsset, defaults, palette, render, REPO_URL, slug, usedIcons, type BlockId, type Config, type Data, type Lang, type ShapeName } from "../render";
+import { buildZip, DEMO, hasIcon, LoadError, loadAllIcons, loadAuthoredStats, loadProfile, loadSavedAuthoredStats, profileFiles, saveAuthoredStats, store } from "./data";
 import { existingReadme, install, InstallError, requestCode, waitForToken, whoami, type DeviceCode } from "./install";
 import { SheetBody, type SheetId } from "./editors";
 import { DICTS, type Dict } from "./i18n";
@@ -35,21 +36,27 @@ function initialLang(): Lang {
   return saved ?? "en";
 }
 
-function migrate(c: Config | null, lang: Lang): Config {
+function migrate(c: unknown, lang: Lang): Config {
   const base = defaults(DEMO_LOGIN, lang);
-  if (!c || c.version !== 1) return base;
+  if (!c || typeof c !== "object") return base;
+  const saved = c as Omit<Partial<Config>, "version"> & { version?: number };
+  if (saved.version !== 1 && saved.version !== 2) return base;
+  const legacy = saved.version === 1;
   return {
     ...base,
-    ...c,
-    hero: { ...base.hero, ...c.hero },
-    about: { ...base.about, ...c.about },
-    stack: { ...base.stack, ...c.stack },
-    projects: { ...base.projects, ...c.projects },
-    stats: { ...base.stats, ...c.stats },
-    buttons: { ...base.buttons, ...c.buttons },
-    streak: { ...base.streak, ...c.streak },
-    socials: { ...base.socials, ...c.socials },
-    order: placeNew(c.order.filter((b) => BLOCKS.includes(b))),
+    ...saved,
+    version: 2,
+    hero: { ...base.hero, ...saved.hero },
+    about: { ...base.about, ...saved.about },
+    stack: { ...base.stack, ...saved.stack },
+    projects: { ...base.projects, ...saved.projects },
+    stats: { ...base.stats, ...saved.stats },
+    authoredStats: { ...base.authoredStats, ...saved.authoredStats },
+    buttons: { ...base.buttons, ...saved.buttons },
+    streak: { ...base.streak, ...saved.streak },
+    socials: { ...base.socials, ...saved.socials },
+    order: placeNew((saved.order ?? []).filter((b) => BLOCKS.includes(b))),
+    hidden: legacy ? [...new Set([...(saved.hidden ?? []), "authoredStats" as BlockId])] : (saved.hidden ?? base.hidden),
   };
 }
 
@@ -171,6 +178,10 @@ export default function App() {
   const [avatar, setAvatar] = useState<string | null>(null);
   const [avatarSeed, setAvatarSeed] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [token, setToken] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null);
+  const [statsDialog, setStatsDialog] = useState(false);
   const [input, setInput] = useState(config.login === DEMO_LOGIN ? "" : config.login);
   const [sheet, setSheet] = useState<SheetId | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -179,6 +190,8 @@ export default function App() {
   const isDemo = config.login === DEMO_LOGIN;
   const [landing, setLanding] = useState(Boolean(from));
   const field = useRef<HTMLInputElement>(null);
+  const analysisLock = useRef(false);
+  const rateBlockedUntil = useRef<Partial<Record<"public" | "authenticated", number>>>({});
 
   const set = useCallback((fn: (c: Config) => Config) => setConfig(fn), []);
 
@@ -215,10 +228,12 @@ export default function App() {
       try {
         const r = await loadProfile(name);
         if (r.stale) setToast(t.stale);
-        setData(r.data);
+        const savedAuthored = loadSavedAuthoredStats(name);
+        setData(savedAuthored ? { ...r.data, authored: savedAuthored } : r.data);
         setExact(!!r.exact);
         setAvatar(r.avatar);
         setInput(name);
+        if (name.toLowerCase() !== config.login.toLowerCase()) setToken("");
         setConfig((c) => ({ ...c, login: name }));
       } catch (e) {
         if (e instanceof LoadError && e.message === "limit" && e.reset) {
@@ -289,6 +304,7 @@ export default function App() {
     const on = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setDialog(false);
+        setStatsDialog(false);
         setSheet(null);
       }
     };
@@ -334,6 +350,45 @@ export default function App() {
       return;
     }
     setDialog(true);
+  };
+
+  const analyze = async (authToken: string) => {
+    if (isDemo || analysisLock.current) return;
+    const scope = authToken.trim() ? "authenticated" : "public";
+    const blockedUntil = rateBlockedUntil.current[scope];
+    if (blockedUntil && blockedUntil > Date.now()) {
+      setToast(t.limitAt.replace("{time}", new Date(blockedUntil).toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" })));
+      return;
+    }
+    analysisLock.current = true;
+    setAnalyzing(true);
+    setAnalysisProgress(null);
+    const latestProgress: { current: AnalysisProgress | null } = { current: null };
+    try {
+      const authored = await loadAuthoredStats(config.login, authToken.trim() || undefined, (progress) => {
+        latestProgress.current = progress;
+        setAnalysisProgress(progress);
+      });
+      saveAuthoredStats(config.login, authored);
+      setData((current) => ({ ...current, authored }));
+      setConfig((current) => ({ ...current, authoredStats: { ...current.authoredStats, enabled: true } }));
+      if (authored.partial?.reason === "rate-limit" && latestProgress.current?.rateLimit) {
+        const reset = latestProgress.current.rateLimit.reset;
+        if (reset) rateBlockedUntil.current[scope] = reset.getTime();
+        setToast(t.authoredRateStopped
+          .replace("{remaining}", String(latestProgress.current.rateLimit.remaining))
+          .replace("{time}", reset ? reset.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }) : "—"));
+      } else setToast(authored.partial ? t.authoredPartial : t.authoredReady);
+      setStatsDialog(false);
+    } catch (error) {
+      if (error instanceof GitHubAnalysisError && error.message === "rate-limit") {
+        if (error.reset) rateBlockedUntil.current[scope] = error.reset.getTime();
+        setToast(error.reset ? t.limitAt.replace("{time}", error.reset.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" })) : t.limit);
+      } else setToast(error instanceof Error && error.message === "mismatch" ? t.tokenMismatch : t.authoredFailed);
+    } finally {
+      analysisLock.current = false;
+      setAnalyzing(false);
+    }
   };
 
   const reset = () => {
@@ -389,6 +444,12 @@ export default function App() {
           </AnimatePresence>
         </form>
         <div className="actions">
+          <IconButton
+            icon={analyzing ? "progress_activity" : "analytics"}
+            title={t.analyze}
+            onClick={() => isDemo ? setToast(t.needLogin) : setStatsDialog(true)}
+            active={statsDialog}
+          />
           <IconButton icon="share" title={t.share} onClick={share} />
           <IconButton icon="palette" title={t.style} onClick={() => setSheet(sheet === "style" ? null : "style")} active={sheet === "style"} />
           <motion.button type="button" className="lang-btn" onClick={switchLang} whileTap={{ scale: 0.85 }} transition={bouncy} title={t.language}>
@@ -432,7 +493,7 @@ export default function App() {
               onReorder={(next: BlockId[]) => setConfig((c) => ({ ...c, order: [...next, ...c.order.filter((b) => c.hidden.includes(b))] }))}
             >
               {visible.map((id) => (
-                <Block key={id} id={id} t={t} active={sheet === id} onEdit={id === "wave" ? undefined : () => setSheet(id as SheetId)} onHide={() => hide(id)}>
+            <Block key={id} id={id} t={t} active={sheet === id} onEdit={id === "wave" ? undefined : () => setSheet(id as SheetId)} onHide={() => hide(id)}>
                   <BlockView id={id} config={deferred} data={data} src={src} size={(n) => width(n) * Math.min(1, k)} fill={(n) => width(n) * k} ratio={ratio} />
                 </Block>
               ))}
@@ -467,6 +528,21 @@ export default function App() {
           <Sheet key="sheet" wide={wide} title={sheet === "style" ? t.style : t.blocks[sheet]} onClose={() => setSheet(null)} t={t}>
             <SheetBody key={sheet} id={sheet} c={config} set={set} t={t} d={data} avatarSeed={avatarSeed} onReset={reset} onImage={fromImage} />
           </Sheet>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {statsDialog && (
+          <StatsDialog
+            t={t}
+            token={token}
+            lang={lang}
+            analyzing={analyzing}
+            progress={analysisProgress}
+            onToken={setToken}
+            onAnalyze={analyze}
+            onClose={() => setStatsDialog(false)}
+          />
         )}
       </AnimatePresence>
 
@@ -510,6 +586,89 @@ function Logo() {
 function Loader() {
   const shape = useCycle(CYCLE, 520);
   return <Morph shape={shape} size={26} spin className="loader" />;
+}
+
+function StatsDialog({
+  t, token, lang, analyzing, progress, onToken, onAnalyze, onClose,
+}: {
+  t: Dict;
+  token: string;
+  lang: Lang;
+  analyzing: boolean;
+  progress: AnalysisProgress | null;
+  onToken: (token: string) => void;
+  onAnalyze: (token: string) => void;
+  onClose: () => void;
+}) {
+  return (
+    <motion.div className="scrim" onClick={analyzing ? undefined : onClose} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+      <motion.div
+        className="dialog authored-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="authored-dialog-title"
+        onClick={(event) => event.stopPropagation()}
+        initial={{ opacity: 0, scale: 0.88, y: 30 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94 }}
+        transition={spring}
+      >
+        <div className="authored-dialog-head">
+          <motion.span className="authored-dialog-icon" animate={{ rotate: analyzing ? 360 : 0 }} transition={analyzing ? { duration: 1.4, repeat: Infinity, ease: "linear" } : spring}>
+            <Glyph name={analyzing ? "progress_activity" : "analytics"} size={28} />
+          </motion.span>
+          <div>
+            <h2 id="authored-dialog-title">{t.authoredDialogTitle}</h2>
+            <p>{t.authoredDialogText}</p>
+          </div>
+          {!analyzing && <IconButton icon="close" title={t.close} onClick={onClose} />}
+        </div>
+
+        <form onSubmit={(event) => { event.preventDefault(); onAnalyze(token); }}>
+          <label className="field authored-token">
+            <span className="field-label">{t.tokenLabel}</span>
+            <span className="authored-token-control">
+              <Glyph name="key" size={20} />
+              <input
+                value={token}
+                onChange={(event) => onToken(event.target.value)}
+                type="password"
+                placeholder={t.token}
+                spellCheck={false}
+                autoCapitalize="off"
+                autoComplete="off"
+                disabled={analyzing}
+              />
+            </span>
+          </label>
+
+          <AnimatePresence initial={false}>
+            {analyzing && (
+              <motion.div className="analysis-progress" role="status" aria-live="polite" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={spring}>
+                <Loader />
+                <span className="analysis-progress-copy">
+                  {progress?.total ? <span>{t.analyzedRepositories.replace("{progress}", `${progress.completed}/${progress.total}`)}</span> : <span>{t.analysisPreparing}</span>}
+                  {progress?.repository && <span>{t.currentRepository.replace("{repository}", progress.repository)}</span>}
+                  {progress && <span>{t.analyzedCommits.replace("{count}", String(progress.commits))}</span>}
+                  {progress?.rateLimit && (
+                    <span>
+                      {t.apiRemaining.replace("{remaining}", String(progress.rateLimit.remaining)).replace("{limit}", String(progress.rateLimit.limit))}
+                      {progress.rateLimit.reset ? ` · ${t.rateReset.replace("{time}", progress.rateLimit.reset.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" }))}` : ""}
+                    </span>
+                  )}
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="dialog-actions authored-dialog-actions">
+            <Button kind="tonal" onClick={() => onAnalyze("")} disabled={analyzing}>{t.analyzePublic}</Button>
+            <Button icon={analyzing ? "progress_activity" : "analytics"} onClick={() => onAnalyze(token)} disabled={analyzing || !token.trim()}>{t.analyzeWithToken}</Button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
 }
 
 function Backdrop() {
@@ -564,7 +723,8 @@ function BlockView({ id, config, data, src, size, fill, ratio }: { id: BlockId; 
   }
   if (id === "socials") return <LinkRow prefix="social" count={config.socials.items.length} src={src} size={size} fill={fill} ratio={ratio} />;
   if (id === "buttons") return <LinkRow prefix="button" count={config.buttons.items.length} src={src} size={size} fill={fill} ratio={ratio} />;
-  return <img draggable={false} className="full" src={src(id)} alt={id} style={{ aspectRatio: 1 / (ratio(id) || 1) }} />;
+  const asset = blockAsset(id);
+  return <img draggable={false} className="full" src={src(asset)} alt={id} style={{ aspectRatio: 1 / (ratio(asset) || 1) }} />;
 }
 
 function LinkRow({ prefix, count, src, size, fill, ratio }: { prefix: string; count: number; src: (n: string) => string; size: (n: string) => number; fill: (n: string) => number; ratio: (n: string) => number }) {

@@ -6,7 +6,7 @@ import type { Dict } from "./i18n";
 import { activePreset, applyPreset, PRESETS, type PresetId } from "./presets";
 import { bouncy, Button, Field, Glyph, IconButton, IconSelect, ItemList, Section, Segmented, ShapePicker, spring, Switch } from "./ui";
 
-export type SheetId = "hero" | "about" | "stack" | "projects" | "stats" | "streak" | "socials" | "buttons" | "style";
+export type SheetId = "hero" | "about" | "stack" | "projects" | "stats" | "authoredStats" | "streak" | "socials" | "buttons" | "style";
 
 interface Props {
   c: Config;
@@ -209,6 +209,17 @@ function Stats({ c, set, t }: Props) {
   );
 }
 
+function AuthoredStats({ c, set, t }: Props) {
+  const s = c.authoredStats;
+  const up = (v: Partial<Config["authoredStats"]>) => set((c) => ({ ...c, authoredStats: { ...c.authoredStats, ...v } }));
+  return <>
+    <Section>
+      <Field label={t.title} value={s.title} onChange={(title) => up({ title })} maxLength={40} />
+      <Field label={t.languagesLabel} value={s.languages} onChange={(languages) => up({ languages })} maxLength={60} />
+    </Section>
+  </>;
+}
+
 // Streak
 function Streak({ c, set, t }: Props) {
   const s = c.streak;
@@ -367,6 +378,7 @@ export function SheetBody({ id, ...p }: Props & { id: SheetId; avatarSeed: strin
   if (id === "stack") return <Stack {...p} />;
   if (id === "projects") return <Projects {...p} />;
   if (id === "stats") return <Stats {...p} />;
+  if (id === "authoredStats") return <AuthoredStats {...p} />;
   if (id === "buttons") return <Buttons {...p} />;
   if (id === "streak") return <Streak {...p} />;
   if (id === "socials") return <Socials {...p} />;

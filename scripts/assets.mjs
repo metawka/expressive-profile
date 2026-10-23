@@ -45,7 +45,7 @@ const coreSymbols = [
   "fork_right", "commit", "group", "merge", "book_2", "terminal", "sports_esports", "widgets",
   "palette", "bolt", "arrow_outward", "favorite", "schedule", "download", "person", "location_on",
   "calendar_month", "deployed_code", "school", "work", "mail", "rocket_launch", "brush", "public",
-  "pets", "coffee", "headphones", "photo_camera", "add", "link", "cloud", "database",
+  "pets", "coffee", "headphones", "photo_camera", "add", "link", "cloud", "database", "key", "analytics", "difference",
   "translate", "home", "lightbulb", "verified", "psychology", "dark_mode", "light_mode", "drag_indicator", "edit", "visibility_off", "visibility", "close", "delete", "search", "check", "restart_alt", "image", "open_in_new", "upload", "keyboard_arrow_down", "chevron_right", "shuffle", "arrow_back", "contrast", "local_fire_department", "trophy", "share", "content_copy", "wallpaper", "dashboard", "add_photo_alternate", "arrow_forward", "edit_square", "auto_awesome_mosaic", "info", "format_paint", "account_circle", "shapes", "interests", "animation", "folder_open", "progress_activity",
 ];
 const coreBrands = [

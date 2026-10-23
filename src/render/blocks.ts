@@ -355,6 +355,51 @@ export function stats(ctx: Ctx) {
   return svg(W, h, b.join(""), s.title, c.motion);
 }
 
+// Authored code statistics
+export function authoredStats(ctx: Ctx) {
+  const { c, d, p } = ctx;
+  const s = c.authoredStats;
+  const a = d.authored;
+  const h = 348;
+  const b = [`<rect width="${W}" height="${h}" rx="32" fill="${p.surfaceContainerLow}"/>`];
+  b.push(sectionTitle(28, 26, s.title, "code", ctx));
+  if (!a || !a.commits || !a.languages.length) {
+    b.push(txt(W / 2, 184, s.noData, 18, p.onSurfaceVariant, { weight: 600, anchor: "middle" }));
+    return svg(W, h, b.join(""), s.title, c.motion);
+  }
+  const langs = a.languages.slice(0, Math.max(1, s.topLanguages));
+  const total = a.languages.reduce((sum, item) => sum + item.changed, 0) || 1;
+  const colors = [p.primary, p.tertiary, p.secondary, mix(p.primary, p.surfaceContainerLow, .45), mix(p.tertiary, p.surfaceContainerLow, .45)];
+  const radius = 58, circumference = 2 * Math.PI * radius;
+  let offset = 0;
+  b.push(`<circle cx="120" cy="176" r="${radius}" fill="none" stroke="${p.surfaceContainerHighest}" stroke-width="22"/>`);
+  langs.forEach((item, index) => {
+    const length = circumference * item.changed / total;
+    b.push(`<circle class="grow" style="animation-delay:${(.12 + index * .07).toFixed(2)}s" cx="120" cy="176" r="${radius}" fill="none" stroke="${colors[index % colors.length]}" stroke-width="22" stroke-linecap="round" stroke-dasharray="${Math.max(0, length - 3).toFixed(2)} ${(circumference - length + 3).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 120 176)"/>`);
+    offset += length;
+  });
+  b.push(txt(120, 171, String(a.commits), 28, p.onSurface, { weight: 700, anchor: "middle" }));
+  b.push(txt(120, 192, s.commits, 13, p.onSurfaceVariant, { weight: 600, anchor: "middle" }));
+  const metrics: [number, string, string][] = [[a.repositoriesWithCommits, s.repositories, "book_2"], [a.additions + a.deletions, s.changed, "difference"]];
+  metrics.forEach(([value, label, iconName], index) => {
+    const x = 224 + index * 188;
+    b.push(`<rect x="${x}" y="74" width="172" height="82" rx="22" fill="${p.surfaceContainerHigh}"/>`);
+    b.push(icon(ctx.i, iconName, x + 18, 94, 20, p.primary));
+    b.push(txt(x + 48, 111, String(value), 24, p.onSurface, { weight: 700 }));
+    b.push(txt(x + 18, 139, fit(label, 13, 136, 500), 13, p.onSurfaceVariant, { weight: 500 }));
+  });
+  b.push(txt(224, 188, s.languages, 14, p.onSurfaceVariant, { weight: 600 }));
+  langs.forEach((item, index) => {
+    const y = 214 + index * 24;
+    const percent = `${Math.round(item.changed * 1000 / total) / 10}%`;
+    b.push(`<circle cx="230" cy="${y - 5}" r="5" fill="${colors[index % colors.length]}"/>`);
+    b.push(txt(242, y, fit(item.name, 14, 190, 500), 14, p.onSurfaceVariant, { weight: 500 }));
+    b.push(txt(W - 28, y, percent, 14, p.onSurface, { weight: 700, anchor: "end" }));
+  });
+  if (a.partial) b.push(txt(28, 324, s.partial, 12, p.error, { weight: 700 }));
+  return svg(W, h, b.join(""), s.title, c.motion);
+}
+
 // Streak
 export function streak(ctx: Ctx) {
   const { c, d, p, i } = ctx;

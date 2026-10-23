@@ -1,12 +1,12 @@
 import type { BlockId, Config } from "../render";
 
-const ALL: BlockId[] = ["hero", "socials", "about", "stack", "projects", "stats", "streak", "wave", "buttons"];
+const ALL: BlockId[] = ["hero", "socials", "about", "stack", "projects", "stats", "authoredStats", "streak", "wave", "buttons"];
 
 export const PRESETS: Record<"full" | "minimal" | "showcase" | "numbers", BlockId[]> = {
   full: ALL,
   minimal: ["hero", "socials", "about", "wave"],
   showcase: ["hero", "socials", "projects", "stack", "wave", "buttons"],
-  numbers: ["hero", "socials", "stats", "streak", "wave"],
+  numbers: ["hero", "socials", "stats", "authoredStats", "streak", "wave"],
 };
 
 export type PresetId = keyof typeof PRESETS;

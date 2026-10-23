@@ -1,4 +1,4 @@
-export type BlockId = "hero" | "about" | "stack" | "projects" | "stats" | "streak" | "socials" | "wave" | "buttons";
+export type BlockId = "hero" | "about" | "stack" | "projects" | "stats" | "authoredStats" | "streak" | "socials" | "wave" | "buttons";
 export type ShapeName = "cookie" | "cookie12" | "clover" | "sunny" | "flower" | "pill" | "soft" | "gem";
 export type SchemeName = "tonalSpot" | "vibrant" | "expressive" | "fidelity" | "monochrome";
 export type Lang = "en" | "ru";
@@ -25,7 +25,7 @@ export interface Override {
 }
 
 export interface Config {
-  version: 1;
+  version: 2;
   login: string;
   seed: string;
   seedFromAvatar?: boolean;
@@ -61,6 +61,18 @@ export interface Config {
     weekdays: string;
     languages: string;
     showLanguages: boolean;
+  };
+  authoredStats: {
+    enabled: boolean;
+    title: string;
+    repositories: string;
+    commits: string;
+    changed: string;
+    languages: string;
+    noData: string;
+    partial: string;
+    topLanguages: number;
+    topRepositories: number;
   };
   streak: { title: string; current: string; longest: string; days: string };
   socials: {
@@ -99,6 +111,34 @@ export interface Data {
   streak: { current: number; longest: number };
   pins: Repo[];
   all: Repo[];
+  authored?: AuthoredStats;
+}
+
+export interface AuthoredLanguage {
+  name: string;
+  additions: number;
+  deletions: number;
+  changed: number;
+}
+
+export interface AuthoredRepository {
+  name: string;
+  url: string;
+  commits: number;
+  additions: number;
+  deletions: number;
+}
+
+export interface AuthoredStats {
+  scope: "public" | "authenticated";
+  repositoriesScanned: number;
+  repositoriesWithCommits: number;
+  commits: number;
+  additions: number;
+  deletions: number;
+  languages: AuthoredLanguage[];
+  repositories: AuthoredRepository[];
+  partial?: { reason: "rate-limit" | "repository-limit" | "commit-limit" | "inaccessible"; scanned: number; total: number };
 }
 
 export interface Icons {
