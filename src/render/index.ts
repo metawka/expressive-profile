@@ -1,7 +1,8 @@
 import { about, AUTO_ICONS, buttons, card, credit, hero, projectList, projectView, SITE_URL, socials, stack, stats, streak, wave } from "./blocks";
 import { esc } from "./kit";
 import { palette } from "./palette";
-import type { BlockId, Config, Data, Icons, Lang } from "./types";
+import { validateHeaderImage } from "./image";
+import type { BlockId, Config, Data, Icons } from "./types";
 
 export * from "./types";
 export { palette } from "./palette";
@@ -10,8 +11,7 @@ export { REPO_URL, SITE_URL } from "./blocks";
 export const BLOCKS: BlockId[] = ["hero", "socials", "about", "stack", "projects", "stats", "streak", "wave", "buttons"];
 
 // Defaults
-export function defaults(login: string, lang: Lang): Config {
-  const ru = lang === "ru";
+export function defaults(login: string): Config {
   return {
     version: 1,
     login,
@@ -23,26 +23,26 @@ export function defaults(login: string, lang: Lang): Config {
     order: [...BLOCKS],
     hidden: [],
     hero: {
-      greeting: ru ? "Привет, я" : "Hi, I'm",
+      greeting: "Hi, I'm",
       name: "",
-      subtitle: ru ? "Делаю интерфейсы и небольшие полезные утилиты." : "I build interfaces and small useful tools.",
+      subtitle: "I build interfaces and small useful tools.",
       typing: true,
       avatarShape: "cookie12",
       chips: [
-        { icon: "location_on", label: ru ? "Земля" : "Earth" },
+        { icon: "location_on", label: "Earth" },
         { icon: "code", label: "TypeScript · Python" },
       ],
     },
     about: {
-      title: ru ? "Обо мне" : "About me",
+      title: "About me",
       items: [
-        { icon: "person", label: ru ? "Разработчик и дизайнер" : "Developer and designer" },
-        { icon: "code", label: ru ? "В основном фронтенд" : "Mostly frontend" },
-        { icon: "palette", label: ru ? "Люблю Material Design" : "Into Material Design" },
+        { icon: "person", label: "Developer and designer" },
+        { icon: "code", label: "Mostly frontend" },
+        { icon: "palette", label: "Into Material Design" },
       ],
     },
     stack: {
-      title: ru ? "Стек" : "Tech stack",
+      title: "Tech stack",
       groups: [
         { title: "Main", items: [{ icon: "brand:typescript", label: "TypeScript" }, { icon: "brand:react", label: "React" }, { icon: "brand:python", label: "Python" }] },
         { title: "Tools", items: [{ icon: "brand:git", label: "Git" }, { icon: "brand:figma", label: "Figma" }, { icon: "brand:githubactions", label: "GitHub Actions" }] },
@@ -52,25 +52,25 @@ export function defaults(login: string, lang: Lang): Config {
       source: "pinned",
       repos: [],
       overrides: {},
-      empty: ru ? "Описания пока нет." : "No description yet.",
+      empty: "No description yet.",
       fork: "Fork",
     },
     stats: {
-      title: ru ? "Активность на GitHub" : "GitHub activity",
-      stars: ru ? "Звёзд получено" : "Stars earned",
-      contributions: ru ? "Вкладов за год" : "Contributions this year",
-      repos: ru ? "Публичных репо" : "Public repos",
-      followers: ru ? "Подписчиков" : "Followers",
-      calendar: ru ? "Последние 21 день" : "Last 21 days",
-      weekdays: ru ? "ВПВСЧПС" : "SMTWTFS",
-      languages: ru ? "Языки в моих репозиториях" : "Languages across my repositories",
+      title: "GitHub activity",
+      stars: "Stars earned",
+      contributions: "Contributions this year",
+      repos: "Public repos",
+      followers: "Followers",
+      calendar: "Last 21 days",
+      weekdays: "SMTWTFS",
+      languages: "Languages across my repositories",
       showLanguages: true,
     },
     streak: {
-      title: ru ? "Серия" : "Streak",
-      current: ru ? "Текущая серия" : "Current streak",
-      longest: ru ? "Рекорд за год" : "Longest this year",
-      days: ru ? "дн." : "days",
+      title: "Streak",
+      current: "Current streak",
+      longest: "Longest this year",
+      days: "days",
     },
     socials: {
       items: [
@@ -84,8 +84,8 @@ export function defaults(login: string, lang: Lang): Config {
     },
     buttons: {
       items: [
-        { icon: "language", label: ru ? "Мой сайт" : "My website", url: "https://example.com", style: "filled" },
-        { icon: "book_2", label: ru ? "Все репозитории" : "All repositories", url: "", style: "tonal" },
+        { icon: "language", label: "My website", url: "https://example.com", style: "filled" },
+        { icon: "book_2", label: "All repositories", url: "", style: "tonal" },
       ],
     },
   };
@@ -156,14 +156,15 @@ export function withFill(icons: Icons): Icons {
 }
 
 export function render(c: Config, d: Data, all: Icons, avatar: string | null, themes: ("light" | "dark")[] = ["light", "dark"]) {
+  const image = c.hero.image ? validateHeaderImage(c.hero.image) : avatar;
   const icons = c.iconFill === false ? all : withFill(all);
   const files: Record<string, string> = {};
   const repos = projectList(c, d);
   for (const theme of themes) {
-    const p = palette(c.seed, c.scheme, theme === "dark");
+    const p = palette(c.seed, c.scheme, theme === "dark", c.skin);
     const ctx = { c, d, p, i: icons };
     const put = (name: string, svg: string) => (files[`assets/${name}-${theme}.svg`] = svg);
-    put("hero", hero(ctx, avatar));
+    put("hero", hero(ctx, image));
     put("about", about(ctx));
     put("stack", stack(ctx));
     put("stats", stats(ctx));

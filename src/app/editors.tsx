@@ -1,9 +1,10 @@
 import { AnimatePresence, motion, Reorder, useDragControls } from "motion/react";
 import { useState } from "react";
 import { projectList, projectView } from "../render/blocks";
-import type { Config, Data, Repo, SchemeName } from "../render";
+import type { Config, Data, Repo, SchemeName, Skin } from "../render";
 import type { Dict } from "./i18n";
 import { activePreset, applyPreset, PRESETS, type PresetId } from "./presets";
+import { uploadHeaderImage } from "./image";
 import { bouncy, Button, Field, Glyph, IconButton, IconSelect, ItemList, Section, Segmented, ShapePicker, spring, Switch } from "./ui";
 
 export type SheetId = "hero" | "about" | "stack" | "projects" | "stats" | "streak" | "socials" | "buttons" | "style";
@@ -18,9 +19,39 @@ interface Props {
 // Hero
 function Hero({ c, set, t }: Props) {
   const h = c.hero;
+  const [imageError, setImageError] = useState("");
+  const [uploading, setUploading] = useState(false);
   const up = (v: Partial<Config["hero"]>) => set((c) => ({ ...c, hero: { ...c.hero, ...v } }));
+  const upload = async (file: File) => {
+    setImageError("");
+    setUploading(true);
+    try {
+      const image = await uploadHeaderImage(file);
+      set((current) => ({ ...current, hero: { ...current.hero, image } }));
+    } catch (error) {
+      console.error("Header image upload failed", error);
+      setImageError(error instanceof Error ? error.message : t.imageFailed);
+    } finally {
+      setUploading(false);
+    }
+  };
   return (
     <>
+      <Section title={t.headerImage}>
+        {h.image && <img className="header-image-preview" src={h.image} alt="Custom header image" />}
+        <label className="from-avatar file">
+          <Glyph name="upload" size={22} />
+          {uploading ? t.imageUploading : t.uploadImage}
+          <input type="file" accept="image/png,image/jpeg,image/webp" disabled={uploading} onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file) void upload(file);
+          }} />
+        </label>
+        <p className="note">{h.image ? t.customImageNote : t.githubImageNote}</p>
+        {h.image && <Button kind="text" onClick={() => { up({ image: undefined }); setImageError(""); }}>{t.useGithubImage}</Button>}
+        {imageError && <p className="note" role="alert">{imageError}</p>}
+      </Section>
       <Section>
         <Field label={t.greeting} value={h.greeting} onChange={(greeting) => up({ greeting })} maxLength={40} />
         <Field label={t.name} value={h.name} placeholder={c.login || t.namePlaceholder} onChange={(name) => up({ name })} maxLength={32} />
@@ -28,7 +59,7 @@ function Hero({ c, set, t }: Props) {
         <Switch label={t.typing} value={h.typing} onChange={(typing) => up({ typing })} />
       </Section>
       <Section title={t.avatarShape}>
-        <ShapePicker value={h.avatarShape} onChange={(s) => up({ avatarShape: s ?? "cookie12" })} />
+        {c.skin === "chrome" ? <p className="note">{t.chromeShapes}</p> : <ShapePicker value={h.avatarShape} onChange={(s) => up({ avatarShape: s ?? "cookie12" })} />}
       </Section>
       <Section title={t.chips}>
         <ItemList items={h.chips} onChange={(chips) => up({ chips })} t={t} max={4} fresh={{ icon: "star", label: "New" }} />
@@ -174,7 +205,7 @@ function RepoRow({ repo: r, index, c, t, open, onToggle, up }: { repo: Repo; ind
               {o.icon && <Button kind="text" onClick={() => setO({ icon: undefined })}>{t.auto}</Button>}
             </div>
             <span className="field-label">{t.shape}</span>
-            <ShapePicker value={o.shape} onChange={(shape) => setO({ shape })} allowAuto autoLabel={t.auto} />
+            {c.skin === "chrome" ? <p className="note">{t.chromeShapes}</p> : <ShapePicker value={o.shape} onChange={(shape) => setO({ shape })} allowAuto autoLabel={t.auto} />}
           </motion.div>
         )}
       </AnimatePresence>
@@ -243,7 +274,7 @@ function Socials({ c, set, t }: Props) {
       </div>
     </Section>
     <Section title={t.shape}>
-      {st.variant === "icon" ? (
+      {c.skin === "chrome" ? <p className="note">{t.chromeShapes}</p> : st.variant === "icon" ? (
         <ShapePicker value={st.shape} onChange={(shape) => up({ shape })} allowAuto autoLabel={t.mix} />
       ) : (
         <Segmented value={st.shape === "soft" ? "soft" : "pill"} onChange={(v) => up({ shape: v === "soft" ? "soft" : undefined })} options={[["pill", t.rounded], ["soft", t.squarish]]} />
@@ -302,6 +333,18 @@ function Style({ c, set, t, avatarSeed, onReset, onImage }: Props & { avatarSeed
   const preset = activePreset(c);
   return (
     <>
+      <Section title={t.skin}>
+        <div className="skin-options" role="radiogroup" aria-label={t.skin}>
+          {(["expressive", "chrome"] as Skin[]).map((skin) => (
+            <button key={skin} type="button" role="radio" aria-checked={(c.skin ?? "expressive") === skin} className={`skin-option skin-${skin}`} onClick={() => set((c) => ({ ...c, skin }))}>
+              <span className="skin-sample" aria-hidden="true"><span> Aa </span><span className="skin-rule" /></span>
+              <strong>{t.skins[skin]}</strong>
+              <span>{skin === "chrome" ? t.chromeDescription : t.expressiveDescription}</span>
+            </button>
+          ))}
+        </div>
+        {c.skin === "chrome" && <p className="note">{t.chromePalette}</p>}
+      </Section>
       <Section title={t.templates}>
         <div className="presets">
           {(Object.keys(PRESETS) as PresetId[]).map((id) => (
@@ -316,6 +359,7 @@ function Style({ c, set, t, avatarSeed, onReset, onImage }: Props & { avatarSeed
           ))}
         </div>
       </Section>
+      {c.skin !== "chrome" && <>
       <Section title={t.seed}>
         <div className="swatches">
           {SEEDS.map((s) => (
@@ -350,6 +394,7 @@ function Style({ c, set, t, avatarSeed, onReset, onImage }: Props & { avatarSeed
           ))}
         </div>
       </Section>
+      </>}
       <Section>
         <Switch label={t.iconFill} value={c.iconFill !== false} onChange={(iconFill) => set((c) => ({ ...c, iconFill }))} />
         <Switch label={t.motion} value={c.motion} onChange={(motion) => set((c) => ({ ...c, motion }))} />

@@ -1,7 +1,7 @@
 export type BlockId = "hero" | "about" | "stack" | "projects" | "stats" | "streak" | "socials" | "wave" | "buttons";
 export type ShapeName = "cookie" | "cookie12" | "clover" | "sunny" | "flower" | "pill" | "soft" | "gem";
 export type SchemeName = "tonalSpot" | "vibrant" | "expressive" | "fidelity" | "monochrome";
-export type Lang = "en" | "ru";
+export type Skin = "expressive" | "chrome";
 
 export interface Item {
   icon: string;
@@ -30,6 +30,7 @@ export interface Config {
   seed: string;
   seedFromAvatar?: boolean;
   scheme: SchemeName;
+  skin?: Skin;
   motion: boolean;
   iconFill?: boolean;
   order: BlockId[];
@@ -40,6 +41,7 @@ export interface Config {
     subtitle: string;
     typing: boolean;
     avatarShape: ShapeName;
+    image?: string;
     chips: Item[];
   };
   about: { title: string; items: Item[] };

@@ -6,8 +6,9 @@
   "scripts": {
     "assets": "node scripts/assets.mjs",
     "renderer": "node scripts/renderer.mjs",
-    "dev": "npm run assets && vite",
-    "build": "npm run assets && npm run renderer && tsc && vite build"
+    "dev": "npm run assets && npm run renderer && vite",
+    "build": "npm run assets && npm run renderer && tsc && vite build",
+    "test": "npm run assets && npm run renderer && node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@material/material-color-utilities": "^0.4.0",
@@ -23,8 +24,10 @@
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^6.1.2",
     "esbuild": "^0.28.2",
+    "fontkit": "^2.0.4",
     "simple-icons": "^16.35.0",
     "typescript": "^7.0.2",
-    "vite": "^8.3.4"
+    "vite": "^8.3.4",
+    "wawoff2": "^2.0.1"
   }
 }

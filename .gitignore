@@ -3,7 +3,10 @@ node_modules
 /public/symbols.json
 /public/brands.json
 /public/gsf.woff2
-/public/rf-cyr.woff2
 /src/render/fontdata.ts
 /src/render/core-icons.json
+/src/render/chrome-metrics.json
+/public/chrome-*.woff2
+/public/profile-renderer.mjs
 .project-status.md
+docs/djleamen-profile/.DS_Store

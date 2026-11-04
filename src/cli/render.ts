@@ -122,7 +122,7 @@ async function main() {
   const cacheFile = ".profile/data.json";
   const cached = existsSync(cacheFile) ? JSON.parse(readFileSync(cacheFile, "utf8")) : null;
   const data = await fetchData(config.login);
-  const ava = await avatar(config.login);
+  const ava = config.hero.image ? null : await avatar(config.login);
   const { days, ...rest } = data;
   const day = new Date().toISOString().slice(0, 10);
   const key = hash(JSON.stringify({ rest, day, avatar: ava ? hash(ava) : null, config }));

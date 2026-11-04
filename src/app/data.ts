@@ -1,5 +1,6 @@
 import { zipSync, strToU8 } from "fflate";
 import core from "../render/core-icons.json";
+import { CHROME_LICENSES } from "../render/fontdata";
 import { pickIcons, readme, render, streakOf, usedIcons, type Config, type Data, type Day, type Icons, type Repo } from "../render";
 
 // Icons
@@ -251,19 +252,72 @@ jobs:
           token: \${{ secrets.PROFILE_TOKEN || github.token }}
 `;
 
-export function profileFiles(c: Config, d: Data, avatar: string | null) {
+const CHROME_WORKFLOW = `name: Expressive Profile
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+  push:
+    paths:
+      - profile.json
+      - .profile/icons.json
+      - .profile/render.mjs
+      - .github/workflows/expressive-profile.yml
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Render
+        run: node .profile/render.mjs
+        env:
+          GITHUB_TOKEN: \${{ secrets.PROFILE_TOKEN || github.token }}
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A assets README.md .profile
+          git diff --cached --quiet || (git commit -m "Updated profile" && git push)
+`;
+
+export class ProfileExportError extends Error {}
+
+export async function profileFiles(c: Config, d: Data, avatar: string | null) {
   const svgs = render(c, d, store, avatar);
   const files: Record<string, string> = { ...svgs };
   files["README.md"] = readme(c, d, svgs);
   files["profile.json"] = JSON.stringify(c, null, 2) + "\n";
   files[".profile/icons.json"] = JSON.stringify(pickIcons(store, usedIcons(c, d)));
-  files[".github/workflows/expressive-profile.yml"] = WORKFLOW;
+  const bundled = c.skin === "chrome" || !!c.hero.image;
+  files[".github/workflows/expressive-profile.yml"] = bundled ? CHROME_WORKFLOW : WORKFLOW;
+  if (bundled) {
+    let renderer: string;
+    try {
+      const response = await fetch("profile-renderer.mjs");
+      if (!response.ok) throw new ProfileExportError(`Could not load the bundled renderer: HTTP ${response.status}`);
+      renderer = await response.text();
+    } catch (cause) {
+      if (cause instanceof ProfileExportError) throw cause;
+      throw new ProfileExportError("Could not load the bundled renderer", { cause });
+    }
+    if (!renderer.includes("expressive-profile-renderer")) throw new ProfileExportError("The bundled renderer is invalid");
+    files[".profile/render.mjs"] = renderer;
+    if (c.skin === "chrome") files[".profile/FONT-LICENSES.txt"] = CHROME_LICENSES;
+  }
   return files;
 }
 
 export async function buildZip(c: Config, d: Data, avatar: string | null) {
   const files: Record<string, Uint8Array> = {};
-  for (const [path, text] of Object.entries(profileFiles(c, d, avatar))) files[path] = strToU8(text);
+  for (const [path, text] of Object.entries(await profileFiles(c, d, avatar))) files[path] = strToU8(text);
   const zip = zipSync(files, { level: 9 });
   const url = URL.createObjectURL(new Blob([zip], { type: "application/zip" }));
   const a = document.createElement("a");

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="219.4" height="96" viewBox="0 0 219.4 96" role="img" aria-label=""><title></title><style>text{font-family:G,'Google Sans','Segoe UI',sans-serif;font-variation-settings:'ROND' 100}
+.up{animation:up .8s cubic-bezier(.05,.7,.1,1) both}
+.pop{transform-box:fill-box;transform-origin:center;animation:pop .6s cubic-bezier(.34,1.56,.64,1) both}
+.fade{animation:fade .9s ease both}
+.spin{transform-box:fill-box;transform-origin:center;animation:spin 40s linear infinite}
+.spin-r{transform-box:fill-box;transform-origin:center;animation:spin 28s linear infinite reverse}
+.bob{transform-box:fill-box;transform-origin:center;animation:bob 7s ease-in-out infinite}
+.grow{transform-box:fill-box;transform-origin:left center;animation:grow 1.1s cubic-bezier(.2,0,0,1) both}
+.wght{animation:wght 1.6s cubic-bezier(.2,0,0,1) .2s both}
+.wave{animation:wave 2.4s linear infinite}
+.blink{animation:blink 1s step-end infinite}
+@keyframes blink{50%{opacity:0}}
+@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-10px) rotate(12deg)}}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes wght{from{font-variation-settings:'ROND' 100,'wght' 400}to{font-variation-settings:'ROND' 100,'wght' 760}}
+@keyframes wave{from{transform:translateX(0)}to{transform:translateX(-48px)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}text{font-family:Cbody,sans-serif;font-variation-settings:normal;font-kerning:none;font-variant-ligatures:none}text[data-font="display"]{font-family:Cdisplay,Cbody,sans-serif}text[data-font="mono"]{font-family:Cmono,Cbody,monospace}.spin,.spin-r,.bob,.wave{animation:none}.pop,.up,.wght{animation:fade .5s ease both}</style><path d="M-27.5 0.5H218.89925433598057V83.5L206.89925433598057 95.5H-39.5V12.5Z" fill="#101316" stroke="#3d4951"/></svg>

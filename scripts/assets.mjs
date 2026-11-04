@@ -2,6 +2,8 @@ import { readFileSync, writeFileSync, readdirSync, mkdirSync, copyFileSync } fro
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as si from "simple-icons";
+import { create } from "fontkit";
+import { decompress } from "wawoff2";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const symDir = join(root, "node_modules/@material-symbols/svg-400/rounded");
@@ -12,14 +14,53 @@ mkdirSync(pub, { recursive: true });
 // Fonts
 const fonts = {
   FONT: readFileSync(join(root, "fonts/GoogleSansFlex-subset.woff2")).toString("base64"),
-  FONT_CYR: readFileSync(join(root, "fonts/RobotoFlex-cyrillic.woff2")).toString("base64"),
 };
+const chromeSources = {
+  body: [
+    { file: "IBMPlexSans-latin.woff2", public: "chrome-body.woff2", weight: "400 700" },
+  ],
+  display: [{ file: "BarlowCondensed-Bold-latin.woff2", public: "chrome-display.woff2", weight: "700" }],
+  mono: [{ file: "IBMPlexMono-Medium-latin.woff2", public: "chrome-mono.woff2", weight: "500" }],
+};
+const chromeFonts = {};
+const faces = {};
+for (const [face, sources] of Object.entries(chromeSources)) {
+  chromeFonts[face] = sources.map((source) => {
+    const path = join(root, "fonts", source.file);
+    copyFileSync(path, join(pub, source.public));
+    return { data: readFileSync(path).toString("base64"), weight: source.weight };
+  });
+  faces[face] = [];
+  // The decoder shares WASM output memory; copy each result before decoding again.
+  for (const source of sources) {
+    const decoded = Buffer.from(await decompress(readFileSync(join(root, "fonts", source.file))));
+    faces[face].push(create(decoded));
+  }
+}
+const chromeLicenses = ["OFL-Barlow.txt", "OFL-IBMPlex.txt"]
+  .map((file) => readFileSync(join(root, "fonts", file), "utf8").split("\n").map((line) => line.trimEnd()).join("\n")).join("\n\n");
 writeFileSync(
   join(src, "fontdata.ts"),
-  Object.entries(fonts).map(([k, v]) => `export const ${k} = "${v}";`).join("\n") + "\n",
+  Object.entries(fonts).map(([k, v]) => `export const ${k} = "${v}";`).join("\n") + "\n" +
+    `export const CHROME_FONTS: Record<string, {data: string; weight: string}[]> = ${JSON.stringify(chromeFonts)};\n` +
+    `export const CHROME_LICENSES = ${JSON.stringify(chromeLicenses)};\n`,
 );
+const chromeMetrics = {};
+for (const [face, fonts] of Object.entries(faces)) {
+  const family = [...fonts, ...faces.body];
+  const codes = [...new Set(family.flatMap((font) => font.characterSet))]
+    .filter((code) => family.some((font) => font.hasGlyphForCodePoint(code)));
+  chromeMetrics[face] = {};
+  for (const weight of [400, 500, 600, 700]) {
+    const variants = family.map((font) => font.variationAxes?.wght ? font.getVariation({ wght: weight }) : font);
+    chromeMetrics[face][weight] = Object.fromEntries(codes.map((code) => {
+      const font = variants.find((font) => font.hasGlyphForCodePoint(code));
+      return [String.fromCodePoint(code), font.glyphForCodePoint(code).advanceWidth / font.unitsPerEm];
+    }));
+  }
+}
+writeFileSync(join(src, "chrome-metrics.json"), JSON.stringify(chromeMetrics));
 copyFileSync(join(root, "fonts/GoogleSansFlex-subset.woff2"), join(pub, "gsf.woff2"));
-copyFileSync(join(root, "fonts/RobotoFlex-cyrillic.woff2"), join(pub, "rf-cyr.woff2"));
 
 // Symbols
 const symbols = {};

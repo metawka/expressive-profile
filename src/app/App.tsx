@@ -3,11 +3,11 @@ import { AnimatePresence, motion, Reorder, useDragControls } from "motion/react"
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { projectList } from "../render/blocks";
 import { deflateSync, inflateSync, strFromU8, strToU8 } from "fflate";
-import { BLOCKS, defaults, palette, render, REPO_URL, slug, usedIcons, type BlockId, type Config, type Data, type Lang, type ShapeName } from "../render";
-import { buildZip, DEMO, hasIcon, LoadError, loadAllIcons, loadProfile, profileFiles, store } from "./data";
+import { BLOCKS, defaults, palette, render, REPO_URL, slug, usedIcons, type BlockId, type Config, type Data, type ShapeName } from "../render";
+import { buildZip, DEMO, hasIcon, LoadError, loadAllIcons, loadProfile, ProfileExportError, profileFiles, store } from "./data";
 import { existingReadme, install, InstallError, requestCode, waitForToken, whoami, type DeviceCode } from "./install";
 import { SheetBody, type SheetId } from "./editors";
-import { DICTS, type Dict } from "./i18n";
+import { TEXT, type Dict } from "./i18n";
 import { bouncy, Button, Glyph, IconButton, Morph, spring, useCycle } from "./ui";
 
 type Theme = "system" | "light" | "dark";
@@ -27,16 +27,15 @@ function read<T>(key: string, fallback: T): T {
 function write(key: string, v: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(v));
-  } catch {}
+    return true;
+  } catch (error) {
+    console.error("Could not save profile settings", error);
+    return false;
+  }
 }
 
-function initialLang(): Lang {
-  const saved = read<Lang | null>("ep:lang", null);
-  return saved ?? "en";
-}
-
-function migrate(c: Config | null, lang: Lang): Config {
-  const base = defaults(DEMO_LOGIN, lang);
+function migrate(c: Config | null): Config {
+  const base = defaults(DEMO_LOGIN);
   if (!c || c.version !== 1) return base;
   return {
     ...base,
@@ -63,20 +62,6 @@ function placeNew(order: BlockId[]) {
   return out;
 }
 
-function retranslate<T>(value: T, from: unknown, to: unknown): T {
-  if (typeof value === "string") return (value === from && typeof to === "string" ? to : value) as T;
-  if (Array.isArray(value)) {
-    if (!Array.isArray(from) || !Array.isArray(to) || from.length !== value.length || to.length !== value.length) return value;
-    return value.map((v, i) => retranslate(v, from[i], to[i])) as T;
-  }
-  if (value && typeof value === "object" && from && to && typeof from === "object" && typeof to === "object") {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value)) out[k] = retranslate(v, (from as any)[k], (to as any)[k]);
-    return out as T;
-  }
-  return value;
-}
-
 // Share
 function encode(c: Config) {
   const bin = deflateSync(strToU8(JSON.stringify(c)), { level: 9 });
@@ -99,13 +84,14 @@ function sharedFromHash() {
   return m ? decode(m[1]) : null;
 }
 
-function remixFrom(theirs: Config, lang: Lang, login: string): Config {
-  const base = defaults(login, lang);
+function remixFrom(theirs: Config, login: string): Config {
+  const base = defaults(login);
   return {
     ...base,
     seed: theirs.seed ?? base.seed,
     seedFromAvatar: false,
     scheme: theirs.scheme ?? base.scheme,
+    skin: theirs.skin ?? base.skin,
     motion: theirs.motion ?? base.motion,
     order: theirs.order ?? base.order,
     hidden: theirs.hidden ?? base.hidden,
@@ -158,11 +144,10 @@ const kebab = (s: string) => s.replace(/[A-Z]/g, (m) => "-" + m.toLowerCase());
 
 // App
 export default function App() {
-  const [lang, setLang] = useState<Lang>(initialLang);
-  const t = DICTS[lang];
+  const t = TEXT;
   const [shared] = useState(sharedFromHash);
   const [from] = useState(() => new URLSearchParams(location.search).get("from"));
-  const [config, setConfig] = useState<Config>(() => migrate(shared ?? read<Config | null>("ep:config", null), lang));
+  const [config, setConfig] = useState<Config>(() => migrate(shared ?? read<Config | null>("ep:config", null)));
   const [theme, setTheme] = useState<Theme>(() => read<Theme>("ep:theme", "system"));
   const dark = useDark(theme);
   const wide = useWide();
@@ -182,12 +167,10 @@ export default function App() {
 
   const set = useCallback((fn: (c: Config) => Config) => setConfig(fn), []);
 
-  useEffect(() => write("ep:config", config), [config]);
-  useEffect(() => write("ep:theme", theme), [theme]);
   useEffect(() => {
-    write("ep:lang", lang);
-    document.documentElement.lang = lang;
-  }, [lang]);
+    if (!write("ep:config", config)) setToast(t.saveFailed);
+  }, [config]);
+  useEffect(() => { write("ep:theme", theme); }, [theme]);
 
   useEffect(() => {
     if (!toast) return;
@@ -199,13 +182,14 @@ export default function App() {
     if (usedIcons(config, data).some((n) => !hasIcon(n))) loadAllIcons().then(() => setIconsTick((x) => x + 1));
   }, [config, data]);
 
-  const p = useMemo(() => palette(config.seed, config.scheme, dark), [config.seed, config.scheme, dark]);
+  const p = useMemo(() => palette(config.seed, config.scheme, dark, config.skin), [config.seed, config.scheme, dark, config.skin]);
   useEffect(() => {
     const root = document.documentElement;
     for (const [k, v] of Object.entries(p)) root.style.setProperty(`--${kebab(k)}`, v);
     root.style.colorScheme = dark ? "dark" : "light";
     root.dataset.theme = dark ? "dark" : "light";
-  }, [p, dark]);
+    root.dataset.skin = config.skin ?? "expressive";
+  }, [p, dark, config.skin]);
 
   const load = useCallback(
     async (login: string) => {
@@ -222,7 +206,7 @@ export default function App() {
         setConfig((c) => ({ ...c, login: name }));
       } catch (e) {
         if (e instanceof LoadError && e.message === "limit" && e.reset) {
-          setToast(t.limitAt.replace("{time}", e.reset.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" })));
+          setToast(t.limitAt.replace("{time}", e.reset.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" })));
         } else setToast(e instanceof LoadError ? t[e.message as "limit" | "notFound" | "failed"] : t.failed);
       } finally {
         setLoading(false);
@@ -275,11 +259,12 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!avatar) return setAvatarSeed(null);
+    const source = config.hero.image || avatar;
+    if (!source) return setAvatarSeed(null);
     const img = new Image();
-    img.src = avatar;
+    img.src = source;
     img.decode().then(() => sourceColorFromImage(img)).then((argb) => setAvatarSeed(hexFromArgb(argb).toUpperCase())).catch(() => setAvatarSeed(null));
-  }, [avatar]);
+  }, [avatar, config.hero.image]);
 
   useEffect(() => {
     if (avatarSeed && config.seedFromAvatar && config.seed !== avatarSeed) setConfig((c) => ({ ...c, seed: avatarSeed }));
@@ -295,12 +280,6 @@ export default function App() {
     addEventListener("keydown", on);
     return () => removeEventListener("keydown", on);
   }, []);
-
-  const switchLang = () => {
-    const next: Lang = lang === "en" ? "ru" : "en";
-    setConfig((c) => retranslate(c, defaults(c.login, lang), defaults(c.login, next)));
-    setLang(next);
-  };
 
   const deferred = useDeferredValue(config);
   const files = useMemo(() => render(deferred, data, store, avatar, [dark ? "dark" : "light"]), [deferred, data, avatar, dark, iconsTick]);
@@ -338,7 +317,7 @@ export default function App() {
 
   const reset = () => {
     if (!confirm(t.resetConfirm)) return;
-    setConfig(defaults(config.login, lang));
+    setConfig(defaults(config.login));
   };
 
   const shiftForSheet = wide && sheet ? 440 : 0;
@@ -351,12 +330,11 @@ export default function App() {
           login={from}
           t={t}
           dark={dark}
-          lang={lang}
           onRemix={(theirs) => {
-            leaveLanding(remixFrom(theirs, lang, DEMO_LOGIN));
+            leaveLanding(remixFrom(theirs, DEMO_LOGIN));
             setToast(t.remixed);
           }}
-          onScratch={() => leaveLanding(defaults(DEMO_LOGIN, lang))}
+          onScratch={() => leaveLanding(defaults(DEMO_LOGIN))}
         />
       </div>
     );
@@ -391,13 +369,6 @@ export default function App() {
         <div className="actions">
           <IconButton icon="share" title={t.share} onClick={share} />
           <IconButton icon="palette" title={t.style} onClick={() => setSheet(sheet === "style" ? null : "style")} active={sheet === "style"} />
-          <motion.button type="button" className="lang-btn" onClick={switchLang} whileTap={{ scale: 0.85 }} transition={bouncy} title={t.language}>
-            <AnimatePresence mode="popLayout" initial={false}>
-              <motion.span key={lang} initial={{ y: 14, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -14, opacity: 0 }} transition={spring}>
-                {lang.toUpperCase()}
-              </motion.span>
-            </AnimatePresence>
-          </motion.button>
           <IconButton
             icon={theme === "dark" ? "dark_mode" : theme === "light" ? "light_mode" : "contrast"}
             title={`${t.theme}: ${t[theme]}`}
@@ -607,22 +578,24 @@ function GetDialog({ t, config, data, avatar, onLogin, onClose }: { t: Dict; con
   const [code, setCode] = useState<DeviceCode | null>(null);
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
+  const [zipFailed, setZipFailed] = useState(false);
   const [login, setLogin] = useState(config.login);
   const token = useRef("");
   const abort = useRef(new AbortController());
   useEffect(() => () => abort.current.abort(), []);
 
   const fail = (e: unknown) => {
+    setZipFailed(false);
     const key = e instanceof InstallError ? e.message : "auth";
     if (key === "cancel") return;
-    setError((t.installErrors as Record<string, string>)[key] ?? t.installErrors.auth);
+    setError(e instanceof ProfileExportError ? t.exportFailed : (t.installErrors as Record<string, string>)[key] ?? t.installErrors.auth);
     setPhase("error");
   };
 
   const upload = async (who: string) => {
     setPhase("work");
     const c = { ...config, login: who };
-    await install(token.current, who, profileFiles(c, data, avatar), setStep);
+    await install(token.current, who, await profileFiles(c, data, avatar), setStep);
     setPhase("done");
   };
 
@@ -645,8 +618,15 @@ function GetDialog({ t, config, data, avatar, onLogin, onClose }: { t: Dict; con
   };
 
   const zip = async () => {
-    await buildZip(config, data, avatar);
-    setPhase("zip");
+    try {
+      await buildZip(config, data, avatar);
+      setPhase("zip");
+    } catch (e) {
+      console.error("Profile export failed", e);
+      setZipFailed(true);
+      setError(t.exportFailed);
+      setPhase("error");
+    }
   };
 
   const panel = (key: string, body: ReactNode) => (
@@ -737,7 +717,7 @@ function GetDialog({ t, config, data, avatar, onLogin, onClose }: { t: Dict; con
         <h2>{error}</h2>
         <div className="dialog-actions center">
           <Button kind="text" onClick={() => setPhase("choose")}>{t.back}</Button>
-          <Button icon="restart_alt" onClick={start}>{t.retry}</Button>
+          <Button icon="restart_alt" onClick={zipFailed ? zip : start}>{t.retry}</Button>
         </div>
       </div>
     ));
@@ -783,7 +763,7 @@ function ZipSteps({ t, login, onAgain }: { t: Dict; login: string; onAgain: () =
   );
 }
 
-function Landing({ login, t, dark, lang, onRemix, onScratch }: { login: string; t: Dict; dark: boolean; lang: Lang; onRemix: (c: Config) => void; onScratch: () => void }) {
+function Landing({ login, t, dark, onRemix, onScratch }: { login: string; t: Dict; dark: boolean; onRemix: (c: Config) => void; onScratch: () => void }) {
   const [theirs, setTheirs] = useState<Config | null>(null);
   const [missing, setMissing] = useState(false);
   const [view, setView] = useState<{ data: Data; avatar: string | null } | null>(null);
@@ -791,7 +771,7 @@ function Landing({ login, t, dark, lang, onRemix, onScratch }: { login: string; 
     const name = encodeURIComponent(login);
     fetch(`https://raw.githubusercontent.com/${name}/${name}/HEAD/profile.json`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((c: Config) => setTheirs(migrate(c, lang)))
+      .then((c: Config) => setTheirs(migrate(c)))
       .catch(() => setMissing(true));
     loadProfile(login).then(setView).catch(() => {});
   }, [login]);

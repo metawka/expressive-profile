@@ -6,10 +6,23 @@
 }
 
 @font-face {
-  font-family: R;
-  src: url("/rf-cyr.woff2") format("woff2");
-  font-weight: 400 800;
-  unicode-range: U+0400-04FF;
+  font-family: CBody;
+  src: url("/chrome-body.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: CDisplay;
+  src: url("/chrome-display.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: CMono;
+  src: url("/chrome-mono.woff2") format("woff2");
+  font-weight: 500;
   font-display: swap;
 }
 
@@ -18,12 +31,118 @@
   --on-primary: #fff;
   --surface: #fff8f8;
   --on-surface: #22191c;
-  --font: G, R, "Google Sans", "Segoe UI", Roboto, system-ui, sans-serif;
+  --font: G, "Google Sans", "Segoe UI", system-ui, sans-serif;
   --r-xl: 28px;
   --r-lg: 20px;
   --r-md: 14px;
   --ease: cubic-bezier(.2, 0, 0, 1);
   color-scheme: light;
+}
+
+:root[data-skin="chrome"] {
+  --font: CBody, "Segoe UI", sans-serif;
+  --r-xl: 8px;
+  --r-lg: 6px;
+  --r-md: 3px;
+}
+
+.skin-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.skin-option {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--outline-variant);
+  border-radius: 8px;
+  text-align: left;
+  background: var(--surface-container);
+}
+
+.skin-option[aria-checked="true"] {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.skin-option > span:last-child {
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.skin-sample {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 62px;
+  padding: 8px 12px;
+  font-size: 32px;
+}
+
+.skin-expressive .skin-sample {
+  background: #e5dcff;
+  color: #453b70;
+  border-radius: 24px;
+  font-family: G, sans-serif;
+}
+
+.skin-chrome .skin-sample {
+  background: #101316;
+  color: #dce4e8;
+  font-family: CDisplay, sans-serif;
+  text-transform: uppercase;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+
+.skin-rule {
+  flex: 1;
+  height: 1px;
+  background: currentColor;
+}
+
+.skin-chrome .skin-rule {
+  color: #a5e3eb;
+}
+
+:root[data-skin="chrome"] .backdrop {
+  background: linear-gradient(135deg, transparent 70%, color-mix(in srgb, var(--outline-variant) 20%, transparent) 70%, transparent 70.2%);
+}
+
+:root[data-skin="chrome"] .bd {
+  display: none;
+}
+
+:root[data-skin="chrome"] :is(.logo-text, .sheet-head h2, .dialog-hero h2, .land-title) {
+  font-family: CDisplay, sans-serif;
+  letter-spacing: .03em;
+}
+
+:root[data-skin="chrome"] :is(.paper-head, .sheet-section h3) {
+  font-family: CMono, monospace;
+  letter-spacing: .04em;
+}
+
+:root[data-skin="chrome"] :is(.login, .login-go, .btn, .icon-btn, .banner, .paper, .block, .block-tools, .group-card, .filter-chip, .preset, .segmented, .segmented button, .seg-bg, .field input, .field textarea, .row-input, .from-avatar) {
+  border-radius: 4px;
+}
+
+:root[data-skin="chrome"] .paper {
+  box-shadow: none;
+}
+
+:root[data-skin="chrome"] :is(.topbar, .sheet, .dialog) {
+  border: 1px solid var(--outline-variant);
+}
+
+.skin-option:focus-visible,
+:root[data-skin="chrome"] :is(button, a, input, textarea):focus-visible {
+  outline: 2px solid var(--tertiary);
+  outline-offset: 3px;
 }
 
 * {
@@ -200,19 +319,6 @@ a {
   gap: 4px;
 }
 
-.lang-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 22px;
-  font-weight: 650;
-  font-size: 14px;
-  overflow: hidden;
-  display: grid;
-  place-items: center;
-  color: var(--on-surface-variant);
-}
-
-.lang-btn:hover,
 .icon-btn:hover {
   background: color-mix(in srgb, var(--on-surface) 8%, transparent);
 }
@@ -592,6 +698,17 @@ a {
   letter-spacing: .06em;
   text-transform: uppercase;
   color: var(--on-surface-variant);
+}
+
+.header-image-preview {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border: 1px solid var(--outline-variant);
+}
+
+.note[role="alert"] {
+  color: var(--error);
 }
 
 .note {

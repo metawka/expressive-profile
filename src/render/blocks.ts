@@ -1,4 +1,5 @@
-import { chip, esc, fit, icon, mix, pop, shape, svg, textWidth, txt, wrap } from "./kit";
+import { chip, esc, icon, mix, pop, shape, svg, typography } from "./kit";
+import { bevel, engraving, lance, panel, plate } from "./chrome";
 import type { Config, Data, Icons, LinkButton, Palette, Repo, ShapeName, Social } from "./types";
 
 export const W = 840;
@@ -47,7 +48,13 @@ interface Ctx {
   i: Icons;
 }
 
-function sectionTitle(x: number, y: number, label: string, ic: string, { p, i }: Ctx, delay = 0) {
+function sectionTitle(x: number, y: number, label: string, ic: string, { c, p, i }: Ctx, delay = 0) {
+  const { txt, fit } = typography(c.skin);
+  if (c.skin === "chrome") {
+    return plate(x, y, 38, 38, p.surfaceContainerHigh, p.outlineVariant, 8) +
+      icon(i, ic, x + 8, y + 8, 22, p.tertiary) +
+      txt(x + 54, y + 28, fit(label, 28, W - x - 82, 700, "display"), 28, p.onSurface, { weight: 700, face: "display", cls: "up", delay });
+  }
   const tile = `<path class="pop" style="animation-delay:${delay.toFixed(2)}s" d="${shape("cookie", x + 20, y + 20, 20)}" fill="${p.primaryContainer}"/>`;
   const glyph = pop(icon(i, ic, x + 9, y + 9, 22, p.onPrimaryContainer), delay + 0.05);
   return tile + glyph + txt(x + 54, y + 28, fit(label, 24, W - x - 82, 600), 24, p.onSurface, { weight: 600, cls: "up", delay });
@@ -56,52 +63,68 @@ function sectionTitle(x: number, y: number, label: string, ic: string, { p, i }:
 // Hero
 export function hero(ctx: Ctx, avatar: string | null) {
   const { c, p, i } = ctx;
+  const chrome = c.skin === "chrome";
+  const { txt, wrap, textWidth } = typography(c.skin);
   const h = 300;
-  const b = [`<clipPath id="card"><rect width="${W}" height="${h}" rx="32"/></clipPath>`];
-  b.push(`<rect width="${W}" height="${h}" rx="32" fill="${p.surfaceContainer}"/>`);
+  const b = [chrome ? `<clipPath id="card"><path d="${bevel(0, 0, W, h, 18)}"/></clipPath>` : `<clipPath id="card"><rect width="${W}" height="${h}" rx="32"/></clipPath>`];
+  b.push(chrome ? panel(W, h, p) : `<rect width="${W}" height="${h}" rx="32" fill="${p.surfaceContainer}"/>`);
   b.push('<g clip-path="url(#card)">');
+  if (chrome) b.push(engraving(p));
+  else {
   b.push(`<path class="spin" d="${shape("flower", 780, 30, 150)}" fill="${p.primaryContainer}"/>`);
   b.push(`<path class="bob" d="${shape("clover", 690, 292, 62)}" fill="${p.tertiaryContainer}"/>`);
   b.push(`<path class="spin-r" d="${shape("sunny", 812, 236, 34)}" fill="${p.secondaryContainer}"/>`);
+  }
   b.push("</g>");
   const cx = 150;
   const cy = 150;
   const frame = c.hero.avatarShape;
-  b.push(`<path class="spin" d="${shape("sunny", cx, cy, 112)}" fill="${p.primary}" opacity=".9"/>`);
-  b.push(`<clipPath id="ava"><path d="${shape(frame, cx, cy, 98)}"/></clipPath>`);
-  b.push(`<path d="${shape(frame, cx, cy, 102)}" fill="${p.surfaceContainer}"/>`);
+  if (chrome) {
+    b.push(plate(40, 40, 220, 220, p.surfaceContainer, "url(#metal)", 24));
+    b.push(`<path d="M32 88V52L52 32H88M212 268H248L268 248V212" fill="none" stroke="${p.outline}" stroke-width="2"/>`);
+    b.push(lance(150, 37, 17, p.primary) + lance(150, 263, 17, p.primary));
+  } else b.push(`<path class="spin" d="${shape("sunny", cx, cy, 112)}" fill="${p.primary}" opacity=".9"/>`);
+  b.push(`<clipPath id="ava"><path d="${chrome ? bevel(52, 52, 196, 196, 18) : shape(frame, cx, cy, 98)}"/></clipPath>`);
+  if (!chrome) b.push(`<path d="${shape(frame, cx, cy, 102)}" fill="${p.surfaceContainer}"/>`);
   if (avatar) {
-    b.push(`<g class="fade"><image href="${avatar}" x="${cx - 100}" y="${cy - 100}" width="200" height="200" clip-path="url(#ava)" preserveAspectRatio="xMidYMid slice"/></g>`);
+    b.push(`<g class="fade"><image href="${esc(avatar)}" x="${cx - 100}" y="${cy - 100}" width="200" height="200" clip-path="url(#ava)" preserveAspectRatio="xMidYMid slice"/></g>`);
   } else {
-    b.push(`<path d="${shape(frame, cx, cy, 98)}" fill="${p.primaryContainer}"/>`);
+    b.push(`<path d="${chrome ? bevel(52, 52, 196, 196, 18) : shape(frame, cx, cy, 98)}" fill="${p.primaryContainer}"/>`);
     b.push(icon(i, "person", cx - 44, cy - 44, 88, p.onPrimaryContainer));
   }
   const x = 294;
   const name = c.hero.name || c.login;
   const room = W - x - 40;
-  const size = Math.min(68, room / Math.max(1, textWidth(name, 1, 700)));
+  const size = Math.min(chrome ? 82 : 68, room / Math.max(1, textWidth(name, 1, 700, "display")));
   b.push(txt(x, 92, c.hero.greeting, 22, p.onSurfaceVariant, { weight: 500, cls: "up", delay: 0.1 }));
-  b.push(pop(txt(x - 3, 156, name, size, p.onSurface, { cls: "wght" }), 0.2, "up"));
+  b.push(pop(txt(x - 3, 156, name, size, p.onSurface, { cls: "wght", ...(chrome ? { weight: 700, face: "display" as const } : {}) }), 0.2, "up"));
   const lines = wrap(c.hero.subtitle, 19, 430, 400, 2);
   let extra = "";
   if (c.hero.typing && c.motion && lines.join("")) {
-    const [body, css] = typing(lines, x, p);
-    b.push(body);
-    extra = css;
+    const [body, css] = typing(lines, x, ctx);
+    if (chrome) {
+      b.push(`<g class="typed">${body}</g><g class="type-static">` +
+        lines.map((line, n) => txt(x, 194 + n * 26, line, 19, p.onSurfaceVariant)).join("") + "</g>");
+      extra = css + ".type-static{display:none}@media(prefers-reduced-motion:reduce){.typed{display:none}.type-static{display:inline}}";
+    } else {
+      b.push(body);
+      extra = css;
+    }
   } else lines.forEach((line, n) => {
     b.push(txt(x, 194 + n * 26, line, 19, p.onSurfaceVariant, { cls: "up", delay: 0.35 + n * 0.08 }));
   });
   let cx2 = x;
   c.hero.chips.forEach((item, n) => {
-    const [g, w] = chip(i, p, cx2, 236, item.label, { icon: item.icon, delay: 0.6 + n * 0.1, style: "tonal" });
+    const [g, w] = chip(i, p, cx2, 236, item.label, { icon: item.icon, delay: 0.6 + n * 0.1, style: "tonal" }, c.skin);
     if (cx2 + w > W - 24) return;
     b.push(g);
     cx2 += w + 8;
   });
-  return svg(W, h, b.join(""), `${c.hero.greeting} ${name}`, c.motion, extra);
+  return svg(W, h, b.join(""), `${c.hero.greeting} ${name}`, c.motion, extra, c.skin);
 }
 
-function typing(lines: string[], x: number, p: Palette): [string, string] {
+function typing(lines: string[], x: number, { c, p }: Ctx): [string, string] {
+  const { txt, textWidth } = typography(c.skin);
   const t0 = 0.7;
   const step = 0.05;
   const chars = lines.map((l) => [...l]);
@@ -144,50 +167,54 @@ function typing(lines: string[], x: number, p: Palette): [string, string] {
 // About
 export function about(ctx: Ctx) {
   const { c, p, i } = ctx;
+  const { txt, fit } = typography(c.skin);
   const row = 54;
   const h = 92 + row * c.about.items.length;
-  const b = [`<rect width="${W}" height="${h}" rx="32" fill="${p.surfaceContainerLow}"/>`];
+  const b = [c.skin === "chrome" ? panel(W, h, p) : `<rect width="${W}" height="${h}" rx="32" fill="${p.surfaceContainerLow}"/>`];
   b.push(sectionTitle(28, 26, c.about.title, "favorite", ctx));
   c.about.items.forEach((item, n) => {
     const y = 86 + n * row;
     const mid = y + (row - 8) / 2;
     b.push(`<g class="up" style="animation-delay:${(0.15 + n * 0.1).toFixed(2)}s">`);
-    b.push(`<rect x="28" y="${y}" width="${W - 56}" height="${row - 8}" rx="16" fill="${p.surfaceContainerHigh}"/>`);
-    b.push(`<circle cx="54" cy="${mid}" r="15" fill="${p.secondaryContainer}"/>`);
+    b.push(c.skin === "chrome"
+      ? `<path d="M28 ${y + row - 8}H${W - 28}" stroke="${p.outlineVariant}"/>`
+      : `<rect x="28" y="${y}" width="${W - 56}" height="${row - 8}" rx="16" fill="${p.surfaceContainerHigh}"/>`);
+    if (c.skin !== "chrome") b.push(`<circle cx="54" cy="${mid}" r="15" fill="${p.secondaryContainer}"/>`);
     b.push(icon(i, item.icon, 45, mid - 9, 18, p.onSecondaryContainer));
     b.push(txt(82, mid + 6, fit(item.label, 17, W - 130, 500), 17, p.onSurface, { weight: 500 }));
     b.push("</g>");
   });
-  return svg(W, h, b.join(""), c.about.title, c.motion);
+  return svg(W, h, b.join(""), c.about.title, c.motion, "", c.skin);
 }
 
 // Stack
 export function stack(ctx: Ctx) {
   const { c, p, i } = ctx;
+  const { txt } = typography(c.skin);
   let y = 86;
   let d = 0.1;
   const groups: string[] = [];
   for (const group of c.stack.groups) {
-    if (group.title) groups.push(txt(28, y + 14, group.title.toUpperCase(), 12, p.onSurfaceVariant, { weight: 600, cls: "fade", delay: d, extra: ' letter-spacing="1.4"' }));
+    if (group.title) groups.push(txt(28, y + 14, group.title.toUpperCase(), 12, p.onSurfaceVariant, { weight: 600, cls: "fade", delay: d, extra: ' letter-spacing="1.4"', face: "mono" }));
     let x = 28;
     let cy = group.title ? y + 26 : y;
     for (const item of group.items) {
-      const [, w] = chip(i, p, 0, 0, item.label, { icon: item.icon });
+      const [, w] = chip(i, p, 0, 0, item.label, { icon: item.icon }, c.skin);
       if (x + w > W - 28) {
         x = 28;
         cy += 44;
       }
-      groups.push(chip(i, p, x, cy, item.label, { icon: item.icon, delay: d })[0]);
+      groups.push(chip(i, p, x, cy, item.label, { icon: item.icon, delay: d }, c.skin)[0]);
       x += w + 8;
       d += 0.05;
     }
     y = cy + 36 + 22;
   }
   const h = y + 6;
-  const b = [`<rect width="${W}" height="${h}" rx="32" fill="${p.surfaceContainerLow}"/>`];
+  const b = [c.skin === "chrome" ? panel(W, h, p) : `<rect width="${W}" height="${h}" rx="32" fill="${p.surfaceContainerLow}"/>`];
   b.push(sectionTitle(28, 26, c.stack.title, "code", ctx));
   b.push(...groups);
-  return svg(W, h, b.join(""), c.stack.title, c.motion);
+  return svg(W, h, b.join(""), c.stack.title, c.motion, "", c.skin);
 }
 
 // Projects
@@ -224,24 +251,28 @@ export function projectView(c: Config, repo: Repo, index: number) {
 
 export function card(ctx: Ctx, repo: Repo, index: number) {
   const { c, p, i } = ctx;
+  const chrome = c.skin === "chrome";
+  const { txt, fit, wrap, textWidth } = typography(c.skin);
   const w = 412;
   const h = 232;
   const d0 = 0.08 * index;
   const v = projectView(c, repo, index);
-  const b = [`<rect width="${w}" height="${h}" rx="28" fill="${p.surfaceContainerHigh}"/>`];
-  b.push(pop(`<path class="spin" d="${shape(v.shape, 52, 52, 30)}" fill="${p.primaryContainer}"/>`, d0));
+  const b = [chrome ? panel(w, h, p) : `<rect width="${w}" height="${h}" rx="28" fill="${p.surfaceContainerHigh}"/>`];
+  b.push(pop(chrome ? plate(24, 24, 56, 56, p.primaryContainer, p.outlineVariant, 12) : `<path class="spin" d="${shape(v.shape, 52, 52, 30)}" fill="${p.primaryContainer}"/>`, d0));
   b.push(pop(icon(i, v.icon, 39, 39, 26, p.onPrimaryContainer), d0 + 0.08));
-  b.push(`<circle cx="${w - 40}" cy="40" r="18" fill="${p.surfaceContainerHighest}"/>`);
+  if (!chrome) b.push(`<circle cx="${w - 40}" cy="40" r="18" fill="${p.surfaceContainerHighest}"/>`);
+  else b.push(`<path d="M96 52H${w - 80}" stroke="${p.outlineVariant}"/>`);
   b.push(icon(i, "arrow_outward", w - 50, 30, 20, p.onSurfaceVariant));
   const tx = 24;
   const forkW = repo.fork ? textWidth(c.projects.fork, 12, 600) + 28 : 0;
-  const title = fit(v.title, 23, w - 48 - forkW, 650);
-  b.push(txt(tx, 116, title, 23, p.onSurface, { weight: 650, cls: "up", delay: d0 + 0.1 }));
+  const titleSize = chrome ? 28 : 23;
+  const title = fit(v.title, titleSize, w - 48 - forkW, chrome ? 700 : 650, "display");
+  b.push(txt(tx, 116, title, titleSize, p.onSurface, { weight: chrome ? 700 : 650, face: "display", cls: "up", delay: d0 + 0.1 }));
   if (repo.fork) {
     const fw = textWidth(c.projects.fork, 12, 600) + 18;
-    const fx = tx + textWidth(title, 23, 650) + 10;
+    const fx = tx + textWidth(title, titleSize, chrome ? 700 : 650, "display") + 10;
     b.push(pop(
-      `<rect x="${fx.toFixed(1)}" y="98" width="${fw.toFixed(1)}" height="22" rx="11" fill="${p.tertiaryContainer}"/>` +
+      (chrome ? plate(fx, 98, fw, 22, p.tertiaryContainer, p.outlineVariant, 4) : `<rect x="${fx.toFixed(1)}" y="98" width="${fw.toFixed(1)}" height="22" rx="11" fill="${p.tertiaryContainer}"/>`) +
         txt(fx + fw / 2, 113, c.projects.fork, 12, p.onTertiaryContainer, { weight: 600, anchor: "middle" }),
       d0 + 0.25,
     ));
@@ -251,7 +282,7 @@ export function card(ctx: Ctx, repo: Repo, index: number) {
   });
   let x = tx;
   v.tags.forEach((tag, n) => {
-    const [g, cw] = chip(i, p, x, 184, tag, { delay: d0 + 0.3 + n * 0.06, h: 28, size: 13, style: "tonal" });
+    const [g, cw] = chip(i, p, x, 184, tag, { delay: d0 + 0.3 + n * 0.06, h: 28, size: 13, style: "tonal" }, c.skin);
     b.push(g);
     x += cw + 6;
   });
@@ -261,12 +292,14 @@ export function card(ctx: Ctx, repo: Repo, index: number) {
     icon(i, "star", w - 24 - sw - 22, 188, 19, p.primary) + txt(w - 24, 203, label, 14, p.onSurfaceVariant, { weight: 600, anchor: "end" }),
     d0 + 0.4,
   ));
-  return svg(w, h, b.join(""), v.title, c.motion);
+  return svg(w, h, b.join(""), v.title, c.motion, "", c.skin);
 }
 
 // Stats
 export function stats(ctx: Ctx) {
   const { c, d, p, i } = ctx;
+  const chrome = c.skin === "chrome";
+  const { txt, fit, textWidth } = typography(c.skin);
   const s = c.stats;
   const langs = s.showLanguages ? d.languages : [];
   const total = langs.reduce((a, [, v]) => a + v, 0) || 1;
@@ -284,7 +317,7 @@ export function stats(ctx: Ctx) {
     x += lw;
   }
   const h = s.showLanguages && langs.length ? 400 + row * 26 : 310;
-  const b = [`<rect width="${W}" height="${h}" rx="32" fill="${p.surfaceContainerLow}"/>`];
+  const b = [chrome ? panel(W, h, p) : `<rect width="${W}" height="${h}" rx="32" fill="${p.surfaceContainerLow}"/>`];
   b.push(sectionTitle(28, 26, s.title, "monitoring", ctx));
   const tiles: [string, number, string, ShapeName][] = [
     ["star", d.stars, s.stars, "cookie"],
@@ -296,10 +329,10 @@ export function stats(ctx: Ctx) {
     const tx = 28 + (n % 2) * 196;
     const ty = 86 + Math.floor(n / 2) * 106;
     b.push(`<g class="up" style="animation-delay:${(0.1 + n * 0.08).toFixed(2)}s">`);
-    b.push(`<rect x="${tx}" y="${ty}" width="184" height="96" rx="24" fill="${p.surfaceContainerHigh}"/>`);
-    b.push(`<path d="${shape(sh, tx + 34, ty + 34, 18)}" fill="${p.primaryContainer}"/>`);
+    b.push(chrome ? plate(tx, ty, 184, 96, p.surfaceContainerHigh, p.outlineVariant, 10) : `<rect x="${tx}" y="${ty}" width="184" height="96" rx="24" fill="${p.surfaceContainerHigh}"/>`);
+    if (!chrome) b.push(`<path d="${shape(sh, tx + 34, ty + 34, 18)}" fill="${p.primaryContainer}"/>`);
     b.push(icon(i, ic, tx + 24, ty + 24, 20, p.onPrimaryContainer));
-    b.push(txt(tx + 62, ty + 46, String(value), 30, p.onSurface, { weight: 700 }));
+    b.push(txt(tx + 62, ty + 46, String(value), 30, p.onSurface, { weight: 700, face: "display" }));
     b.push(txt(tx + 20, ty + 78, fit(label, 14, 152, 500), 14, p.onSurfaceVariant, { weight: 500 }));
     b.push("</g>");
   });
@@ -320,13 +353,13 @@ export function stats(ctx: Ctx) {
       const y = 136 + wi * (ch + 6);
       const delay = 0.2 + (wi * 7 + di) * 0.025;
       if (!day) {
-        b.push(`<rect class="pop" style="animation-delay:${delay.toFixed(3)}s" x="${(x + 0.75).toFixed(1)}" y="${y + 0.75}" width="${(cw - 1.5).toFixed(1)}" height="${ch - 1.5}" rx="14" fill="none" stroke="${p.outlineVariant}" stroke-width="1.5" stroke-dasharray="4 4"/>`);
+        b.push(`<rect class="pop" style="animation-delay:${delay.toFixed(3)}s" x="${(x + 0.75).toFixed(1)}" y="${y + 0.75}" width="${(cw - 1.5).toFixed(1)}" height="${ch - 1.5}" rx="${chrome ? 2 : 14}" fill="none" stroke="${p.outlineVariant}" stroke-width="1.5" stroke-dasharray="4 4"/>`);
         return;
       }
       const lvl = day.c === 0 ? 0 : Math.min(4, 1 + Math.floor((3 * day.c) / peak + 0.5));
-      const fg = lvl >= 3 ? p.onPrimary : p.onSurfaceVariant;
-      let cell = `<rect x="${x.toFixed(1)}" y="${y}" width="${cw.toFixed(1)}" height="${ch}" rx="14" fill="${levels[lvl]}"/>`;
-      if (day.today) cell += `<rect x="${(x - 3).toFixed(1)}" y="${y - 3}" width="${(cw + 6).toFixed(1)}" height="${ch + 6}" rx="17" fill="none" stroke="${p.primary}" stroke-width="2"/>`;
+      const fg = chrome ? (luminance(levels[lvl].slice(1)) > 0.179 ? "#000000" : "#ffffff") : lvl >= 3 ? p.onPrimary : p.onSurfaceVariant;
+      let cell = `<rect x="${x.toFixed(1)}" y="${y}" width="${cw.toFixed(1)}" height="${ch}" rx="${chrome ? 2 : 14}" fill="${levels[lvl]}"/>`;
+      if (day.today) cell += `<rect x="${(x - 3).toFixed(1)}" y="${y - 3}" width="${(cw + 6).toFixed(1)}" height="${ch + 6}" rx="${chrome ? 3 : 17}" fill="none" stroke="${chrome ? p.tertiary : p.primary}" stroke-width="2"/>`;
       cell += txt(x + cw / 2, y + ch / 2 + 5, String(day.day), 14, fg, { weight: 600, anchor: "middle" });
       b.push(`<g class="pop" style="animation-delay:${delay.toFixed(3)}s">${cell}</g>`);
     });
@@ -342,7 +375,7 @@ export function stats(ctx: Ctx) {
     const k = (bw - gaps) / (widths.reduce((a, v) => a + v, 0) || 1);
     let sx = 28;
     const segs = widths.map((sw, n) => {
-      const r = `<rect x="${sx.toFixed(1)}" y="${ly + 12}" width="${(sw * k).toFixed(1)}" height="14" rx="7" fill="${colors[n % colors.length]}"/>`;
+      const r = `<rect x="${sx.toFixed(1)}" y="${ly + 12}" width="${(sw * k).toFixed(1)}" height="14" rx="${chrome ? 0 : 7}" fill="${colors[n % colors.length]}"/>`;
       sx += sw * k + 4;
       return r;
     });
@@ -352,15 +385,17 @@ export function stats(ctx: Ctx) {
       b.push(pop(`<circle cx="${lx + 5}" cy="${ly2 - 5}" r="5" fill="${colors[n % colors.length]}"/>` + txt(lx + 15, ly2, label, 14, p.onSurfaceVariant, { weight: 500 }), 0.6 + n * 0.06, "fade"));
     });
   }
-  return svg(W, h, b.join(""), s.title, c.motion);
+  return svg(W, h, b.join(""), s.title, c.motion, "", c.skin);
 }
 
 // Streak
 export function streak(ctx: Ctx) {
   const { c, d, p, i } = ctx;
+  const chrome = c.skin === "chrome";
+  const { txt, fit, textWidth } = typography(c.skin);
   const s = c.streak;
   const h = 214;
-  const b = [`<rect width="${W}" height="${h}" rx="32" fill="${p.surfaceContainerLow}"/>`];
+  const b = [chrome ? panel(W, h, p) : `<rect width="${W}" height="${h}" rx="32" fill="${p.surfaceContainerLow}"/>`];
   b.push(sectionTitle(28, 26, s.title, "local_fire_department", ctx));
   const tw = (W - 56 - 12) / 2;
   const tiles: [number, string, ShapeName, string][] = [
@@ -371,17 +406,17 @@ export function streak(ctx: Ctx) {
     const tx = 28 + n * (tw + 12);
     const ty = 86;
     b.push(`<g class="up" style="animation-delay:${(0.1 + n * 0.1).toFixed(2)}s">`);
-    b.push(`<rect x="${tx}" y="${ty}" width="${tw}" height="100" rx="26" fill="${n ? p.surfaceContainerHigh : p.primaryContainer}"/>`);
-    b.push(pop(`<path class="${n ? "spin-r" : "spin"}" d="${shape(sh, tx + 52, ty + 50, 30)}" fill="${n ? p.secondaryContainer : p.primary}"/>`, 0.2 + n * 0.1));
+    b.push(chrome ? plate(tx, ty, tw, 100, n ? p.surfaceContainerHigh : p.primaryContainer, p.outlineVariant, 12) : `<rect x="${tx}" y="${ty}" width="${tw}" height="100" rx="26" fill="${n ? p.surfaceContainerHigh : p.primaryContainer}"/>`);
+    b.push(pop(chrome ? plate(tx + 24, ty + 22, 56, 56, n ? p.secondaryContainer : p.primary, p.outline, 12) : `<path class="${n ? "spin-r" : "spin"}" d="${shape(sh, tx + 52, ty + 50, 30)}" fill="${n ? p.secondaryContainer : p.primary}"/>`, 0.2 + n * 0.1));
     b.push(icon(i, ic, tx + 38, ty + 36, 28, n ? p.onSecondaryContainer : p.onPrimary));
     const num = String(value);
     const fg = n ? p.onSurface : p.onPrimaryContainer;
-    b.push(txt(tx + 100, ty + 56, num, 40, fg, { weight: 700 }));
-    b.push(txt(tx + 108 + textWidth(num, 40, 700), ty + 56, s.days, 16, fg, { weight: 600 }));
+    b.push(txt(tx + 100, ty + 56, num, 40, fg, { weight: 700, face: "display" }));
+    b.push(txt(tx + 108 + textWidth(num, 40, 700, "display"), ty + 56, s.days, 16, fg, { weight: 600 }));
     b.push(txt(tx + 100, ty + 80, fit(label, 15, tw - 120, 500), 15, n ? p.onSurfaceVariant : p.onPrimaryContainer, { weight: 500 }));
     b.push("</g>");
   });
-  return svg(W, h, b.join(""), s.title, c.motion);
+  return svg(W, h, b.join(""), s.title, c.motion, "", c.skin);
 }
 
 // Socials
@@ -421,8 +456,10 @@ interface Piece {
 }
 
 function socialPiece({ c, p, i }: Ctx, item: Social, n: number): Piece {
+  const chrome = c.skin === "chrome";
+  const { txt, textWidth } = typography(c.skin);
   const st = c.socials;
-  const col = socialColors(p, i, item, st.fill);
+  const col = socialColors(p, i, item, chrome && st.fill === "tonal" ? "outlined" : st.fill);
   const stroke = col.stroke ? ` stroke="${col.stroke}" stroke-width="1.5"` : "";
   const delay = n * 0.06;
   if (st.variant === "chip") {
@@ -431,7 +468,7 @@ function socialPiece({ c, p, i }: Ctx, item: Social, n: number): Piece {
     const w = 18 + 24 + 10 + textWidth(label, 16, 600) + 20;
     const rx = st.shape === "soft" ? 16 : 24;
     const body = pop(
-      `<rect x="1" y="1" width="${(w - 2).toFixed(1)}" height="${h - 2}" rx="${rx}" fill="${col.bg}"${stroke}/>` +
+      (chrome ? plate(1, 1, w - 2, h - 2, col.bg, col.stroke || col.bg, 8) : `<rect x="1" y="1" width="${(w - 2).toFixed(1)}" height="${h - 2}" rx="${rx}" fill="${col.bg}"${stroke}/>`) +
         icon(i, item.icon, 18, 12, 24, col.fg) +
         txt(52, 30, label, 16, col.fg, { weight: 600 }),
       delay,
@@ -440,18 +477,19 @@ function socialPiece({ c, p, i }: Ctx, item: Social, n: number): Piece {
   }
   const kind = st.shape ?? (n % 2 ? "cookie" : "cookie12");
   const body =
-    `<path class="pop" style="animation-delay:${delay.toFixed(2)}s" d="${shape(kind, 28, 28, 25.5)}" fill="${col.bg}"${stroke}/>` +
+    (chrome ? plate(2, 2, 52, 52, col.bg, col.stroke || col.bg, 10) : `<path class="pop" style="animation-delay:${delay.toFixed(2)}s" d="${shape(kind, 28, 28, 25.5)}" fill="${col.bg}"${stroke}/>` ) +
     pop(icon(i, item.icon, 15, 15, 26, col.fg), delay + 0.05);
   return { body, w: 56, h: 56, title: item.url };
 }
 
-function buttonPiece({ p, i }: Ctx, btn: LinkButton, n: number): Piece {
+function buttonPiece({ c, p, i }: Ctx, btn: LinkButton, n: number): Piece {
+  const { txt, textWidth } = typography(c.skin);
   const h = 56;
   const size = 17;
   const iw = btn.icon ? 32 : 0;
   const w = 56 + iw + textWidth(btn.label, size, 600);
   const [bg, fg] = btn.style === "filled" ? [p.primary, p.onPrimary] : [p.secondaryContainer, p.onSecondaryContainer];
-  let body = `<rect width="${w.toFixed(1)}" height="${h}" rx="28" fill="${bg}"/>`;
+  let body = c.skin === "chrome" ? plate(0, 0, w, h, bg, p.outline, 10) : `<rect width="${w.toFixed(1)}" height="${h}" rx="28" fill="${bg}"/>`;
   if (btn.icon) body += icon(i, btn.icon, 28, (h - 22) / 2, 22, fg);
   body += txt(28 + iw, h / 2 + 6, btn.label, size, fg, { weight: 600 });
   return { body: pop(body, n * 0.08), w, h, title: btn.label };
@@ -470,17 +508,18 @@ function row(ctx: Ctx, prefix: string, pieces: Piece[], card: boolean) {
   const { c, p } = ctx;
   const files: Record<string, string> = {};
   if (!card || !rowFits(pieces)) {
-    pieces.forEach((x, n) => (files[`${prefix}-${n + 1}`] = svg(x.w, x.h, x.body, x.title, c.motion)));
+    pieces.forEach((x, n) => (files[`${prefix}-${n + 1}`] = svg(x.w, x.h, x.body, x.title, c.motion, "", c.skin)));
     return files;
   }
   const h = Math.max(...pieces.map((x) => x.h)) + PAD * 2;
   const cap = (W - pieces.reduce((a, x) => a + x.w + GAP, 0)) / 2;
   const bg = p.surfaceContainerLow;
-  files[`${prefix}-l`] = svg(cap, h, `<rect width="${(cap + 40).toFixed(1)}" height="${h}" rx="32" fill="${bg}"/>`, "", c.motion);
-  files[`${prefix}-r`] = svg(cap, h, `<rect x="-40" width="${(cap + 40).toFixed(1)}" height="${h}" rx="32" fill="${bg}"/>`, "", c.motion);
+  files[`${prefix}-l`] = svg(cap, h, c.skin === "chrome" ? plate(0, 0, cap + 40, h, bg, p.outlineVariant, 12) : `<rect width="${(cap + 40).toFixed(1)}" height="${h}" rx="32" fill="${bg}"/>`, "", c.motion, "", c.skin);
+  files[`${prefix}-r`] = svg(cap, h, c.skin === "chrome" ? plate(-40, 0, cap + 40, h, bg, p.outlineVariant, 12) : `<rect x="-40" width="${(cap + 40).toFixed(1)}" height="${h}" rx="32" fill="${bg}"/>`, "", c.motion, "", c.skin);
   pieces.forEach((x, n) => {
     const w = x.w + GAP;
-    files[`${prefix}-${n + 1}`] = svg(w, h, `<rect width="${w + 1}" height="${h}" fill="${bg}"/><g transform="translate(${GAP / 2} ${(h - x.h) / 2})">${x.body}</g>`, x.title, c.motion);
+    const rules = c.skin === "chrome" ? `<path d="M0 .5H${w + 1}M0 ${h - 0.5}H${w + 1}" stroke="${p.outlineVariant}"/>` : "";
+    files[`${prefix}-${n + 1}`] = svg(w, h, `<rect width="${w + 1}" height="${h}" fill="${bg}"/>${rules}<g transform="translate(${GAP / 2} ${(h - x.h) / 2})">${x.body}</g>`, x.title, c.motion, "", c.skin);
   });
   return files;
 }
@@ -497,6 +536,12 @@ export function buttons(ctx: Ctx) {
 
 export function wave({ c, p }: Ctx) {
   const h = 28;
+  if (c.skin === "chrome") {
+    const body = `<path d="M24 14H386M454 14H816" stroke="${p.outline}"/>` +
+      `<path d="M24 10V18M816 10V18M366 10L374 18M466 10L474 18" stroke="${p.outlineVariant}"/>` +
+      lance(W / 2, h / 2, 14, p.primary);
+    return svg(W, h, body, "divider", false, "", c.skin);
+  }
   const amp = 5;
   const length = 48;
   const pts: string[] = [];
@@ -507,9 +552,10 @@ export function wave({ c, p }: Ctx) {
   return svg(W, h, body, "divider", c.motion);
 }
 
-export function credit({ p }: Ctx) {
+export function credit({ c, p }: Ctx) {
+  const { txt, textWidth } = typography(c.skin);
   const label = "Made with Expressive Profile";
   const size = 12;
   const w = textWidth(label, size, 500) + 4;
-  return svg(w, 18, txt(2, 13, label, size, p.onSurfaceVariant, { weight: 500, extra: ' opacity=".7"' }), label, false);
+  return svg(w, 18, txt(2, 13, label, size, p.onSurfaceVariant, { weight: 500, extra: ' opacity=".7"' }), label, false, "", c.skin);
 }
